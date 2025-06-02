@@ -1,60 +1,30 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>Mini Doom Raycasting Game</title>
+  <title>Textured Raycasting Game (Fast)</title>
   <style>
     html, body {
       margin: 0; padding: 0; overflow: hidden; background: black; height: 100%; width: 100%;
-      color: white; font-family: Arial, sans-serif;
     }
     canvas {
       display: block;
       position: absolute;
-      top: 0; left: 0;
-    }
-    #fullscreenBtn {
-      position: absolute;
-      top: 10px; left: 10px;
-      z-index: 1000;
-      padding: 8px 12px;
-      background: #222;
-      color: white;
-      border: none;
-      cursor: pointer;
-      font-size: 14px;
-      border-radius: 4px;
-    }
-    #fullscreenBtn:hover {
-      background: #444;
     }
   </style>
 </head>
 <body>
-  <button id="fullscreenBtn">Go Fullscreen</button>
   <canvas id="game"></canvas>
-
   <script>
-    const canvas = document.getElementById('game');
-    const ctx = canvas.getContext('2d');
+    const canvas = document.getElementById("game");
+    const ctx = canvas.getContext("2d");
 
     function resize() {
       canvas.width = window.innerWidth;
       canvas.height = window.innerHeight;
     }
     resize();
-    window.addEventListener('resize', resize);
+    window.addEventListener("resize", resize);
 
-    // Fullscreen toggle button
-    const fullscreenBtn = document.getElementById('fullscreenBtn');
-    fullscreenBtn.addEventListener('click', () => {
-      if (document.fullscreenElement) {
-        document.exitFullscreen();
-      } else {
-        document.documentElement.requestFullscreen();
-      }
-    });
-
-    // Simple raycasting game map
     const map = [
       "########",
       "#......#",
@@ -65,117 +35,145 @@
       "#......#",
       "########"
     ];
-    const mapWidth = map[0].length;
-    const mapHeight = map.length;
 
     let posX = 3.5, posY = 3.5;
     let dirX = 1, dirY = 0;
     let planeX = 0, planeY = 0.66;
 
     const keys = {};
-    document.addEventListener('keydown', e => keys[e.key.toLowerCase()] = true);
-    document.addEventListener('keyup', e => keys[e.key.toLowerCase()] = false);
+    document.addEventListener("keydown", e => keys[e.key.toLowerCase()] = true);
+    document.addEventListener("keyup", e => keys[e.key.toLowerCase()] = false);
 
-    function gameLoop() {
-      const w = canvas.width;
-      const h = canvas.height;
+    const wallTexture = new Image();
+    wallTexture.src = "https://i.imgur.com/8bJHd5J.png"; // example texture (64x64)
 
-      ctx.fillStyle = 'black';
-      ctx.fillRect(0, 0, w, h);
+    wallTexture.onload = () => {
+      // Precut vertical stripes for fast rendering
+      const texSlices = [];
+      const texCanvas = document.createElement("canvas");
+      texCanvas.width = wallTexture.width;
+      texCanvas.height = wallTexture.height;
+      const texCtx = texCanvas.getContext("2d");
+      texCtx.drawImage(wallTexture, 0, 0);
 
-      for (let x = 0; x < w; x++) {
-        const cameraX = 2 * x / w - 1;
-        const rayDirX = dirX + planeX * cameraX;
-        const rayDirY = dirY + planeY * cameraX;
+      for (let x = 0; x < wallTexture.width; x++) {
+        const slice = document.createElement("canvas");
+        slice.width = 1;
+        slice.height = wallTexture.height;
+        const sliceCtx = slice.getContext("2d");
+        sliceCtx.drawImage(texCanvas, x, 0, 1, wallTexture.height, 0, 0, 1, wallTexture.height);
+        texSlices.push(slice);
+      }
 
-        let mapX = Math.floor(posX);
-        let mapY = Math.floor(posY);
+      function gameLoop() {
+        const w = canvas.width;
+        const h = canvas.height;
+        ctx.fillStyle = "black";
+        ctx.fillRect(0, 0, w, h);
 
-        let sideDistX, sideDistY;
+        for (let x = 0; x < w; x++) {
+          const cameraX = 2 * x / w - 1;
+          const rayDirX = dirX + planeX * cameraX;
+          const rayDirY = dirY + planeY * cameraX;
 
-        const deltaDistX = Math.abs(1 / rayDirX);
-        const deltaDistY = Math.abs(1 / rayDirY);
-        let perpWallDist;
+          let mapX = Math.floor(posX);
+          let mapY = Math.floor(posY);
 
-        let stepX, stepY;
-        let hit = 0, side;
+          let sideDistX, sideDistY;
+          const deltaDistX = Math.abs(1 / rayDirX);
+          const deltaDistY = Math.abs(1 / rayDirY);
+          let perpWallDist;
 
-        if (rayDirX < 0) {
-          stepX = -1;
-          sideDistX = (posX - mapX) * deltaDistX;
-        } else {
-          stepX = 1;
-          sideDistX = (mapX + 1.0 - posX) * deltaDistX;
-        }
+          let stepX, stepY;
+          let hit = 0, side;
 
-        if (rayDirY < 0) {
-          stepY = -1;
-          sideDistY = (posY - mapY) * deltaDistY;
-        } else {
-          stepY = 1;
-          sideDistY = (mapY + 1.0 - posY) * deltaDistY;
-        }
-
-        while (hit === 0) {
-          if (sideDistX < sideDistY) {
-            sideDistX += deltaDistX;
-            mapX += stepX;
-            side = 0;
+          if (rayDirX < 0) {
+            stepX = -1;
+            sideDistX = (posX - mapX) * deltaDistX;
           } else {
-            sideDistY += deltaDistY;
-            mapY += stepY;
-            side = 1;
+            stepX = 1;
+            sideDistX = (mapX + 1.0 - posX) * deltaDistX;
           }
-          if (map[mapY][mapX] === '#') hit = 1;
+
+          if (rayDirY < 0) {
+            stepY = -1;
+            sideDistY = (posY - mapY) * deltaDistY;
+          } else {
+            stepY = 1;
+            sideDistY = (mapY + 1.0 - posY) * deltaDistY;
+          }
+
+          while (hit === 0) {
+            if (sideDistX < sideDistY) {
+              sideDistX += deltaDistX;
+              mapX += stepX;
+              side = 0;
+            } else {
+              sideDistY += deltaDistY;
+              mapY += stepY;
+              side = 1;
+            }
+            if (map[mapY][mapX] === "#") hit = 1;
+          }
+
+          if (side === 0)
+            perpWallDist = (mapX - posX + (1 - stepX) / 2) / rayDirX;
+          else
+            perpWallDist = (mapY - posY + (1 - stepY) / 2) / rayDirY;
+
+          const lineHeight = Math.floor(h / perpWallDist);
+          let drawStart = -lineHeight / 2 + h / 2;
+          let drawEnd = lineHeight / 2 + h / 2;
+          if (drawStart < 0) drawStart = 0;
+          if (drawEnd >= h) drawEnd = h - 1;
+
+          let wallX;
+          if (side === 0) wallX = posY + perpWallDist * rayDirY;
+          else wallX = posX + perpWallDist * rayDirX;
+          wallX -= Math.floor(wallX);
+
+          let texX = Math.floor(wallX * wallTexture.width);
+          if (side === 0 && rayDirX > 0) texX = wallTexture.width - texX - 1;
+          if (side === 1 && rayDirY < 0) texX = wallTexture.width - texX - 1;
+
+          const texSlice = texSlices[texX];
+          ctx.drawImage(texSlice, 0, 0, 1, wallTexture.height, x, drawStart, 1, drawEnd - drawStart);
         }
 
-        if (side === 0) perpWallDist = (mapX - posX + (1 - stepX) / 2) / rayDirX;
-        else perpWallDist = (mapY - posY + (1 - stepY) / 2) / rayDirY;
+        // Controls
+        const moveSpeed = 0.05;
+        const rotSpeed = 0.03;
 
-        const lineHeight = Math.floor(h / perpWallDist);
-        const drawStart = -lineHeight / 2 + h / 2;
-        const drawEnd = lineHeight / 2 + h / 2;
+        if (keys["w"] || keys["arrowup"]) {
+          if (map[Math.floor(posY)][Math.floor(posX + dirX * moveSpeed)] === ".") posX += dirX * moveSpeed;
+          if (map[Math.floor(posY + dirY * moveSpeed)][Math.floor(posX)] === ".") posY += dirY * moveSpeed;
+        }
+        if (keys["s"] || keys["arrowdown"]) {
+          if (map[Math.floor(posY)][Math.floor(posX - dirX * moveSpeed)] === ".") posX -= dirX * moveSpeed;
+          if (map[Math.floor(posY - dirY * moveSpeed)][Math.floor(posX)] === ".") posY -= dirY * moveSpeed;
+        }
+        if (keys["a"] || keys["arrowright"]) {
+          const oldDirX = dirX;
+          dirX = dirX * Math.cos(-rotSpeed) - dirY * Math.sin(-rotSpeed);
+          dirY = oldDirX * Math.sin(-rotSpeed) + dirY * Math.cos(-rotSpeed);
+          const oldPlaneX = planeX;
+          planeX = planeX * Math.cos(-rotSpeed) - planeY * Math.sin(-rotSpeed);
+          planeY = oldPlaneX * Math.sin(-rotSpeed) + planeY * Math.cos(-rotSpeed);
+        }
+        if (keys["d"] || keys["arrowleft"]) {
+          const oldDirX = dirX;
+          dirX = dirX * Math.cos(rotSpeed) - dirY * Math.sin(rotSpeed);
+          dirY = oldDirX * Math.sin(rotSpeed) + dirY * Math.cos(rotSpeed);
+          const oldPlaneX = planeX;
+          planeX = planeX * Math.cos(rotSpeed) - planeY * Math.sin(rotSpeed);
+          planeY = oldPlaneX * Math.sin(rotSpeed) + planeY * Math.cos(rotSpeed);
+        }
 
-        const shade = side === 1 ? 180 : 255;
-        ctx.strokeStyle = `rgb(${shade},${shade},${shade})`;
-        ctx.beginPath();
-        ctx.moveTo(x, drawStart);
-        ctx.lineTo(x, drawEnd);
-        ctx.stroke();
+        requestAnimationFrame(gameLoop);
       }
 
-      const moveSpeed = 0.05;
-      const rotSpeed = 0.03;
-
-      if (keys['arrowup'] || keys['w']) {
-        if (map[Math.floor(posY)][Math.floor(posX + dirX * moveSpeed)] === '.') posX += dirX * moveSpeed;
-        if (map[Math.floor(posY + dirY * moveSpeed)][Math.floor(posX)] === '.') posY += dirY * moveSpeed;
-      }
-      if (keys['arrowdown'] || keys['s']) {
-        if (map[Math.floor(posY)][Math.floor(posX - dirX * moveSpeed)] === '.') posX -= dirX * moveSpeed;
-        if (map[Math.floor(posY - dirY * moveSpeed)][Math.floor(posX)] === '.') posY -= dirY * moveSpeed;
-      }
-      if (keys['arrowleft'] || keys['d']) {
-        const oldDirX = dirX;
-        dirX = dirX * Math.cos(rotSpeed) - dirY * Math.sin(rotSpeed);
-        dirY = oldDirX * Math.sin(rotSpeed) + dirY * Math.cos(rotSpeed);
-        const oldPlaneX = planeX;
-        planeX = planeX * Math.cos(rotSpeed) - planeY * Math.sin(rotSpeed);
-        planeY = oldPlaneX * Math.sin(rotSpeed) + planeY * Math.cos(rotSpeed);
-      }
-      if (keys['arrowright'] || keys['a']) {
-        const oldDirX = dirX;
-        dirX = dirX * Math.cos(-rotSpeed) - dirY * Math.sin(-rotSpeed);
-        dirY = oldDirX * Math.sin(-rotSpeed) + dirY * Math.cos(-rotSpeed);
-        const oldPlaneX = planeX;
-        planeX = planeX * Math.cos(-rotSpeed) - planeY * Math.sin(-rotSpeed);
-        planeY = oldPlaneX * Math.sin(-rotSpeed) + planeY * Math.cos(-rotSpeed);
-      }
-
-      requestAnimationFrame(gameLoop);
-    }
-
-    gameLoop();
+      gameLoop();
+    };
   </script>
 </body>
 </html>
