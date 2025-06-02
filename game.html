@@ -1,16 +1,16 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>Mini Doom Raycasting Game with Textured Walls</title>
+  <title>Mini Doom Raycasting Game (Optimized)</title>
   <style>
     html, body {
       margin: 0; padding: 0; overflow: hidden; background: black; height: 100%; width: 100%;
-      color: white; font-family: Arial, sans-serif;
     }
     canvas {
       display: block;
       position: absolute;
       top: 0; left: 0;
+      image-rendering: pixelated;
     }
     #fullscreenBtn {
       position: absolute;
@@ -37,15 +37,18 @@
     const canvas = document.getElementById('game');
     const ctx = canvas.getContext('2d');
 
+    const scale = 0.5;
     function resize() {
-      canvas.width = window.innerWidth;
-      canvas.height = window.innerHeight;
+      canvas.width = window.innerWidth * scale;
+      canvas.height = window.innerHeight * scale;
+      canvas.style.width = window.innerWidth + 'px';
+      canvas.style.height = window.innerHeight + 'px';
+      ctx.imageSmoothingEnabled = false;
     }
     resize();
     window.addEventListener('resize', resize);
 
-    const fullscreenBtn = document.getElementById('fullscreenBtn');
-    fullscreenBtn.addEventListener('click', () => {
+    document.getElementById('fullscreenBtn').addEventListener('click', () => {
       if (document.fullscreenElement) {
         document.exitFullscreen();
       } else {
@@ -75,12 +78,14 @@
     document.addEventListener('keydown', e => keys[e.key.toLowerCase()] = true);
     document.addEventListener('keyup', e => keys[e.key.toLowerCase()] = false);
 
-    // Load wall texture
     const wallTexture = new Image();
-    wallTexture.src = 'wall.png'; // Make sure this file exists
+    wallTexture.src = 'wall.png'; // Use a small resolution like 64x64
+
+    const offscreenCanvas = document.createElement('canvas');
+    const offscreenCtx = offscreenCanvas.getContext('2d');
 
     wallTexture.onload = () => {
-      gameLoop(); // Start loop after texture is loaded
+      gameLoop();
     };
 
     function gameLoop() {
@@ -143,14 +148,10 @@
         const lineHeight = Math.floor(h / perpWallDist);
         let drawStart = -lineHeight / 2 + h / 2;
         let drawEnd = lineHeight / 2 + h / 2;
+        drawStart = Math.max(drawStart, 0);
+        drawEnd = Math.min(drawEnd, h);
 
-        if (drawStart < 0) drawStart = 0;
-        if (drawEnd >= h) drawEnd = h - 1;
-
-        // Wall texture calculations
-        let wallX;
-        if (side === 0) wallX = posY + perpWallDist * rayDirY;
-        else wallX = posX + perpWallDist * rayDirX;
+        let wallX = side === 0 ? posY + perpWallDist * rayDirY : posX + perpWallDist * rayDirX;
         wallX -= Math.floor(wallX);
 
         const texWidth = wallTexture.width;
@@ -159,17 +160,13 @@
         if (side === 0 && rayDirX > 0) texX = texWidth - texX - 1;
         if (side === 1 && rayDirY < 0) texX = texWidth - texX - 1;
 
-        // Draw each pixel from the texture slice
-        for (let y = drawStart; y < drawEnd; y++) {
-          const d = y * 256 - h * 128 + lineHeight * 128;
-          const texY = Math.floor((d * texHeight) / lineHeight / 256);
-
-          ctx.drawImage(
-            wallTexture,
-            texX, texY, 1, 1, // Source
-            x, y, 1, 1        // Destination
-          );
-        }
+        // Draw entire vertical column as 1 drawImage call using offscreen canvas
+        const sliceHeight = drawEnd - drawStart;
+        offscreenCanvas.width = 1;
+        offscreenCanvas.height = sliceHeight;
+        offscreenCtx.clearRect(0, 0, 1, sliceHeight);
+        offscreenCtx.drawImage(wallTexture, texX, 0, 1, texHeight, 0, 0, 1, sliceHeight);
+        ctx.drawImage(offscreenCanvas, 0, 0, 1, sliceHeight, x, drawStart, 1, sliceHeight);
       }
 
       const moveSpeed = 0.05;
