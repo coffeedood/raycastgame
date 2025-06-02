@@ -155,7 +155,7 @@
         if (map[Math.floor(posY)][Math.floor(posX - dirX * moveSpeed)] === '.') posX -= dirX * moveSpeed;
         if (map[Math.floor(posY - dirY * moveSpeed)][Math.floor(posX)] === '.') posY -= dirY * moveSpeed;
       }
-      if (keys['arrowright'] || keys['d']) {
+      if (keys['arrowleft'] || keys['d']) {
         const oldDirX = dirX;
         dirX = dirX * Math.cos(-rotSpeed) - dirY * Math.sin(-rotSpeed);
         dirY = oldDirX * Math.sin(-rotSpeed) + dirY * Math.cos(-rotSpeed);
@@ -163,7 +163,7 @@
         planeX = planeX * Math.cos(-rotSpeed) - planeY * Math.sin(-rotSpeed);
         planeY = oldPlaneX * Math.sin(-rotSpeed) + planeY * Math.cos(-rotSpeed);
       }
-      if (keys['arrowleft'] || keys['a']) {
+      if (keys['arrowright'] || keys['a']) {
         const oldDirX = dirX;
         dirX = dirX * Math.cos(rotSpeed) - dirY * Math.sin(rotSpeed);
         dirY = oldDirX * Math.sin(rotSpeed) + dirY * Math.cos(rotSpeed);
