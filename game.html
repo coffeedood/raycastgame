@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>Mini Doom Raycasting Game</title>
+  <title>Mini Doom Raycasting Game with Textured Walls</title>
   <style>
     html, body {
       margin: 0; padding: 0; overflow: hidden; background: black; height: 100%; width: 100%;
@@ -44,7 +44,6 @@
     resize();
     window.addEventListener('resize', resize);
 
-    // Fullscreen toggle button
     const fullscreenBtn = document.getElementById('fullscreenBtn');
     fullscreenBtn.addEventListener('click', () => {
       if (document.fullscreenElement) {
@@ -54,7 +53,6 @@
       }
     });
 
-    // Simple raycasting game map
     const map = [
       "########",
       "#......#",
@@ -65,6 +63,7 @@
       "#......#",
       "########"
     ];
+
     const mapWidth = map[0].length;
     const mapHeight = map.length;
 
@@ -75,6 +74,14 @@
     const keys = {};
     document.addEventListener('keydown', e => keys[e.key.toLowerCase()] = true);
     document.addEventListener('keyup', e => keys[e.key.toLowerCase()] = false);
+
+    // Load wall texture
+    const wallTexture = new Image();
+    wallTexture.src = 'wall.png'; // Make sure this file exists
+
+    wallTexture.onload = () => {
+      gameLoop(); // Start loop after texture is loaded
+    };
 
     function gameLoop() {
       const w = canvas.width;
@@ -92,7 +99,6 @@
         let mapY = Math.floor(posY);
 
         let sideDistX, sideDistY;
-
         const deltaDistX = Math.abs(1 / rayDirX);
         const deltaDistY = Math.abs(1 / rayDirY);
         let perpWallDist;
@@ -129,19 +135,41 @@
           if (map[mapY][mapX] === '#') hit = 1;
         }
 
-        if (side === 0) perpWallDist = (mapX - posX + (1 - stepX) / 2) / rayDirX;
-        else perpWallDist = (mapY - posY + (1 - stepY) / 2) / rayDirY;
+        if (side === 0)
+          perpWallDist = (mapX - posX + (1 - stepX) / 2) / rayDirX;
+        else
+          perpWallDist = (mapY - posY + (1 - stepY) / 2) / rayDirY;
 
         const lineHeight = Math.floor(h / perpWallDist);
-        const drawStart = -lineHeight / 2 + h / 2;
-        const drawEnd = lineHeight / 2 + h / 2;
+        let drawStart = -lineHeight / 2 + h / 2;
+        let drawEnd = lineHeight / 2 + h / 2;
 
-        const shade = side === 1 ? 180 : 255;
-        ctx.strokeStyle = `rgb(${shade},${shade},${shade})`;
-        ctx.beginPath();
-        ctx.moveTo(x, drawStart);
-        ctx.lineTo(x, drawEnd);
-        ctx.stroke();
+        if (drawStart < 0) drawStart = 0;
+        if (drawEnd >= h) drawEnd = h - 1;
+
+        // Wall texture calculations
+        let wallX;
+        if (side === 0) wallX = posY + perpWallDist * rayDirY;
+        else wallX = posX + perpWallDist * rayDirX;
+        wallX -= Math.floor(wallX);
+
+        const texWidth = wallTexture.width;
+        const texHeight = wallTexture.height;
+        let texX = Math.floor(wallX * texWidth);
+        if (side === 0 && rayDirX > 0) texX = texWidth - texX - 1;
+        if (side === 1 && rayDirY < 0) texX = texWidth - texX - 1;
+
+        // Draw each pixel from the texture slice
+        for (let y = drawStart; y < drawEnd; y++) {
+          const d = y * 256 - h * 128 + lineHeight * 128;
+          const texY = Math.floor((d * texHeight) / lineHeight / 256);
+
+          ctx.drawImage(
+            wallTexture,
+            texX, texY, 1, 1, // Source
+            x, y, 1, 1        // Destination
+          );
+        }
       }
 
       const moveSpeed = 0.05;
@@ -174,8 +202,6 @@
 
       requestAnimationFrame(gameLoop);
     }
-
-    gameLoop();
   </script>
 </body>
 </html>
