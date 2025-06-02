@@ -5,12 +5,12 @@
   <style>
     html, body {
       margin: 0; padding: 0; overflow: hidden; background: black; height: 100%; width: 100%;
+      color: white; font-family: Arial, sans-serif;
     }
     canvas {
       display: block;
       position: absolute;
       top: 0; left: 0;
-      image-rendering: pixelated;
     }
     #fullscreenBtn {
       position: absolute;
@@ -36,8 +36,8 @@
   <script>
     const canvas = document.getElementById('game');
     const ctx = canvas.getContext('2d');
-
     const scale = 0.5;
+
     function resize() {
       canvas.width = window.innerWidth * scale;
       canvas.height = window.innerHeight * scale;
@@ -48,7 +48,8 @@
     resize();
     window.addEventListener('resize', resize);
 
-    document.getElementById('fullscreenBtn').addEventListener('click', () => {
+    const fullscreenBtn = document.getElementById('fullscreenBtn');
+    fullscreenBtn.addEventListener('click', () => {
       if (document.fullscreenElement) {
         document.exitFullscreen();
       } else {
@@ -79,12 +80,21 @@
     document.addEventListener('keyup', e => keys[e.key.toLowerCase()] = false);
 
     const wallTexture = new Image();
-    wallTexture.src = 'wall.png'; // Use a small resolution like 64x64
+    wallTexture.src = 'wall.png';
 
-    const offscreenCanvas = document.createElement('canvas');
-    const offscreenCtx = offscreenCanvas.getContext('2d');
+    let wallSlices = [];
 
     wallTexture.onload = () => {
+      const texWidth = wallTexture.width;
+      const texHeight = wallTexture.height;
+      for (let i = 0; i < texWidth; i++) {
+        const sliceCanvas = document.createElement('canvas');
+        sliceCanvas.width = 1;
+        sliceCanvas.height = texHeight;
+        const sliceCtx = sliceCanvas.getContext('2d');
+        sliceCtx.drawImage(wallTexture, i, 0, 1, texHeight, 0, 0, 1, texHeight);
+        wallSlices.push(sliceCanvas);
+      }
       gameLoop();
     };
 
@@ -148,29 +158,21 @@
         const lineHeight = Math.floor(h / perpWallDist);
         let drawStart = -lineHeight / 2 + h / 2;
         let drawEnd = lineHeight / 2 + h / 2;
-        drawStart = Math.max(drawStart, 0);
-        drawEnd = Math.min(drawEnd, h);
+
+        if (drawStart < 0) drawStart = 0;
+        if (drawEnd >= h) drawEnd = h - 1;
 
         let wallX = side === 0 ? posY + perpWallDist * rayDirY : posX + perpWallDist * rayDirX;
         wallX -= Math.floor(wallX);
 
-        const texWidth = wallTexture.width;
-        const texHeight = wallTexture.height;
-        let texX = Math.floor(wallX * texWidth);
-        if (side === 0 && rayDirX > 0) texX = texWidth - texX - 1;
-        if (side === 1 && rayDirY < 0) texX = texWidth - texX - 1;
+        const texX = Math.floor(wallX * wallTexture.width);
+        const slice = wallSlices[texX];
 
-        // Draw entire vertical column as 1 drawImage call using offscreen canvas
-        const sliceHeight = drawEnd - drawStart;
-        offscreenCanvas.width = 1;
-        offscreenCanvas.height = sliceHeight;
-        offscreenCtx.clearRect(0, 0, 1, sliceHeight);
-        offscreenCtx.drawImage(wallTexture, texX, 0, 1, texHeight, 0, 0, 1, sliceHeight);
-        ctx.drawImage(offscreenCanvas, 0, 0, 1, sliceHeight, x, drawStart, 1, sliceHeight);
+        ctx.drawImage(slice, 0, 0, 1, wallTexture.height, x, drawStart, 1, drawEnd - drawStart);
       }
 
-      const moveSpeed = 0.05;
-      const rotSpeed = 0.03;
+      const moveSpeed = 0.08;
+      const rotSpeed = 0.05;
 
       if (keys['arrowup'] || keys['w']) {
         if (map[Math.floor(posY)][Math.floor(posX + dirX * moveSpeed)] === '.') posX += dirX * moveSpeed;
@@ -180,7 +182,7 @@
         if (map[Math.floor(posY)][Math.floor(posX - dirX * moveSpeed)] === '.') posX -= dirX * moveSpeed;
         if (map[Math.floor(posY - dirY * moveSpeed)][Math.floor(posX)] === '.') posY -= dirY * moveSpeed;
       }
-      if (keys['arrowleft'] || keys['d']) {
+      if (keys['arrowleft'] || keys['a']) {
         const oldDirX = dirX;
         dirX = dirX * Math.cos(rotSpeed) - dirY * Math.sin(rotSpeed);
         dirY = oldDirX * Math.sin(rotSpeed) + dirY * Math.cos(rotSpeed);
@@ -188,7 +190,7 @@
         planeX = planeX * Math.cos(rotSpeed) - planeY * Math.sin(rotSpeed);
         planeY = oldPlaneX * Math.sin(rotSpeed) + planeY * Math.cos(rotSpeed);
       }
-      if (keys['arrowright'] || keys['a']) {
+      if (keys['arrowright'] || keys['d']) {
         const oldDirX = dirX;
         dirX = dirX * Math.cos(-rotSpeed) - dirY * Math.sin(-rotSpeed);
         dirY = oldDirX * Math.sin(-rotSpeed) + dirY * Math.cos(-rotSpeed);
