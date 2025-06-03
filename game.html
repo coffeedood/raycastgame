@@ -1,17 +1,13 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>Mini Doom Raycasting Game</title>
+  <title>Raycaster with Doors</title>
   <style>
     html, body {
-      margin: 0; padding: 0; overflow: hidden; background: black; height: 100%; width: 100%;
-      color: white; font-family: Arial, sans-serif;
+      margin: 0; padding: 0; overflow: hidden; background: black;
+      height: 100%; width: 100%;
     }
-    canvas {
-      display: block;
-      position: absolute;
-      top: 0; left: 0;
-    }
+    canvas { display: block; }
     #fullscreenBtn {
       position: absolute;
       top: 10px; left: 10px;
@@ -24,9 +20,6 @@
       font-size: 14px;
       border-radius: 4px;
     }
-    #fullscreenBtn:hover {
-      background: #444;
-    }
   </style>
 </head>
 <body>
@@ -34,54 +27,49 @@
   <canvas id="game"></canvas>
 
   <script>
-    const canvas = document.getElementById('game');
-    const ctx = canvas.getContext('2d');
+    const canvas = document.getElementById("game");
+    const ctx = canvas.getContext("2d");
 
     function resize() {
       canvas.width = window.innerWidth;
       canvas.height = window.innerHeight;
     }
     resize();
-    window.addEventListener('resize', resize);
+    window.addEventListener("resize", resize);
 
-    const fullscreenBtn = document.getElementById('fullscreenBtn');
-    fullscreenBtn.addEventListener('click', () => {
-      if (document.fullscreenElement) {
-        document.exitFullscreen();
-      } else {
+    document.getElementById("fullscreenBtn").onclick = () => {
+      if (!document.fullscreenElement)
         document.documentElement.requestFullscreen();
-      }
-    });
+      else
+        document.exitFullscreen();
+    };
 
-    // Map: '#' = wall, '.' = empty, 'D' = door
     const map = [
-      "########",
-      "#......#",
-      "#..D#..#",
-      "#......#",
-      "###..###",
-      "#......#",
-      "#......#",
-      "########"
+      "##########",
+      "#........#",
+      "#.######.#",
+      "#.#....#.#",
+      "#.#.D..#.#",
+      "#.#....#.#",
+      "#.######.#",
+      "#........#",
+      "##########"
     ];
     const mapWidth = map[0].length;
     const mapHeight = map.length;
 
-    let posX = 3.5, posY = 3.5;
+    let posX = 1.5, posY = 1.5;
     let dirX = 1, dirY = 0;
     let planeX = 0, planeY = 0.66;
-
     const keys = {};
-    document.addEventListener('keydown', e => keys[e.key.toLowerCase()] = true);
-    document.addEventListener('keyup', e => keys[e.key.toLowerCase()] = false);
+    document.addEventListener("keydown", e => keys[e.key.toLowerCase()] = true);
+    document.addEventListener("keyup", e => keys[e.key.toLowerCase()] = false);
 
     let lastToggle = 0;
 
     function gameLoop(timestamp) {
-      const w = canvas.width;
-      const h = canvas.height;
-
-      ctx.fillStyle = 'black';
+      const w = canvas.width, h = canvas.height;
+      ctx.fillStyle = "black";
       ctx.fillRect(0, 0, w, h);
 
       for (let x = 0; x < w; x++) {
@@ -95,11 +83,7 @@
         let sideDistX, sideDistY;
         const deltaDistX = Math.abs(1 / rayDirX);
         const deltaDistY = Math.abs(1 / rayDirY);
-        let perpWallDist;
-
-        let stepX, stepY;
-        let hit = 0, side;
-        let hitChar = '';
+        let stepX, stepY, side, hit = 0, hitChar = '';
 
         if (rayDirX < 0) {
           stepX = -1;
@@ -117,7 +101,7 @@
           sideDistY = (mapY + 1.0 - posY) * deltaDistY;
         }
 
-        while (hit === 0) {
+        while (!hit) {
           if (sideDistX < sideDistY) {
             sideDistX += deltaDistX;
             mapX += stepX;
@@ -131,10 +115,9 @@
           if (hitChar === '#' || hitChar === 'D') hit = 1;
         }
 
-        if (side === 0)
-          perpWallDist = (mapX - posX + (1 - stepX) / 2) / rayDirX;
-        else
-          perpWallDist = (mapY - posY + (1 - stepY) / 2) / rayDirY;
+        const perpWallDist = side === 0
+          ? (mapX - posX + (1 - stepX) / 2) / rayDirX
+          : (mapY - posY + (1 - stepY) / 2) / rayDirY;
 
         const lineHeight = Math.floor(h / perpWallDist);
         const drawStart = -lineHeight / 2 + h / 2;
@@ -145,8 +128,7 @@
           const shade = side === 1 ? 180 : 255;
           color = `rgb(${shade},${shade},${shade})`;
         } else if (hitChar === 'D') {
-          const shade = side === 1 ? 100 : 160;
-          color = `rgb(${shade}, ${shade * 0.5}, 0)`; // brown door
+          color = side === 1 ? `rgb(160, 90, 30)` : `rgb(200, 120, 50)`; // wood door shades
         }
 
         ctx.strokeStyle = color;
@@ -159,17 +141,18 @@
       const moveSpeed = 0.05;
       const rotSpeed = 0.03;
 
+      const forwardX = posX + dirX * moveSpeed;
+      const forwardY = posY + dirY * moveSpeed;
+
       if (keys['w'] || keys['arrowup']) {
-        const nextX = posX + dirX * moveSpeed;
-        const nextY = posY + dirY * moveSpeed;
-        if (map[Math.floor(posY)][Math.floor(nextX)] === '.') posX = nextX;
-        if (map[Math.floor(nextY)][Math.floor(posX)] === '.') posY = nextY;
+        if (map[Math.floor(posY)][Math.floor(forwardX)] === '.') posX = forwardX;
+        if (map[Math.floor(forwardY)][Math.floor(posX)] === '.') posY = forwardY;
       }
       if (keys['s'] || keys['arrowdown']) {
-        const nextX = posX - dirX * moveSpeed;
-        const nextY = posY - dirY * moveSpeed;
-        if (map[Math.floor(posY)][Math.floor(nextX)] === '.') posX = nextX;
-        if (map[Math.floor(nextY)][Math.floor(posX)] === '.') posY = nextY;
+        const backX = posX - dirX * moveSpeed;
+        const backY = posY - dirY * moveSpeed;
+        if (map[Math.floor(posY)][Math.floor(backX)] === '.') posX = backX;
+        if (map[Math.floor(backY)][Math.floor(posX)] === '.') posY = backY;
       }
       if (keys['d'] || keys['arrowright']) {
         const oldDirX = dirX;
@@ -188,17 +171,14 @@
         planeY = oldPlaneX * Math.sin(rotSpeed) + planeY * Math.cos(rotSpeed);
       }
 
-      // Door open/close
+      // Door toggle
       if (keys['e'] && timestamp - lastToggle > 300) {
-        const frontX = Math.floor(posX + dirX);
-        const frontY = Math.floor(posY + dirY);
-        if (map[frontY] && map[frontY][frontX]) {
-          if (map[frontY][frontX] === 'D') {
-            map[frontY] = map[frontY].substring(0, frontX) + '.' + map[frontY].substring(frontX + 1);
-            lastToggle = timestamp;
-          } else if (map[frontY][frontX] === '.') {
-            // Only close a door if originally a door (optional)
-            map[frontY] = map[frontY].substring(0, frontX) + 'D' + map[frontY].substring(frontX + 1);
+        const tx = Math.floor(posX + dirX);
+        const ty = Math.floor(posY + dirY);
+        if (map[ty] && map[ty][tx]) {
+          const char = map[ty][tx];
+          if (char === 'D') {
+            map[ty] = map[ty].substring(0, tx) + '.' + map[ty].substring(tx + 1);
             lastToggle = timestamp;
           }
         }
