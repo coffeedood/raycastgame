@@ -44,7 +44,6 @@
     resize();
     window.addEventListener('resize', resize);
 
-    // Fullscreen toggle button
     const fullscreenBtn = document.getElementById('fullscreenBtn');
     fullscreenBtn.addEventListener('click', () => {
       if (document.fullscreenElement) {
@@ -54,14 +53,7 @@
       }
     });
 
-    // Load textures
-    const wallTexture = new Image();
-    wallTexture.src = 'wall.png'; // Replace with your wall texture path
-
-    const doorTexture = new Image();
-    doorTexture.src = 'door.png'; // Replace with your door texture path
-
-    // Simple raycasting game map
+    // Map with doors: D = closed door, O = open door
     const map = [
       "########",
       "#......#",
@@ -80,23 +72,28 @@
     let planeX = 0, planeY = 0.66;
 
     const keys = {};
-    document.addEventListener('keydown', e => {
-      keys[e.key.toLowerCase()] = true;
-      if (e.key.toLowerCase() === 'e') {
-        interact();
-      }
-    });
+    document.addEventListener('keydown', e => keys[e.key.toLowerCase()] = true);
     document.addEventListener('keyup', e => keys[e.key.toLowerCase()] = false);
 
-    function interact() {
-      const facingX = Math.floor(posX + dirX);
-      const facingY = Math.floor(posY + dirY);
-      if (map[facingY][facingX] === 'D') {
-        map[facingY] = map[facingY].substring(0, facingX) + 'O' + map[facingY].substring(facingX + 1);
-      } else if (map[facingY][facingX] === 'O') {
-        map[facingY] = map[facingY].substring(0, facingX) + 'D' + map[facingY].substring(facingX + 1);
+    function isWalkable(x, y) {
+      const cell = map[Math.floor(y)]?.[Math.floor(x)];
+      return cell === '.' || cell === 'O';
+    }
+
+    function toggleDoor() {
+      const tx = Math.floor(posX + dirX);
+      const ty = Math.floor(posY + dirY);
+      const target = map[ty]?.[tx];
+      if (target === 'D') {
+        map[ty] = map[ty].substring(0, tx) + 'O' + map[ty].substring(tx + 1);
+      } else if (target === 'O') {
+        map[ty] = map[ty].substring(0, tx) + 'D' + map[ty].substring(tx + 1);
       }
     }
+
+    document.addEventListener('keydown', e => {
+      if (e.key.toLowerCase() === 'e') toggleDoor();
+    });
 
     function gameLoop() {
       const w = canvas.width;
@@ -114,14 +111,12 @@
         let mapY = Math.floor(posY);
 
         let sideDistX, sideDistY;
-
         const deltaDistX = Math.abs(1 / rayDirX);
         const deltaDistY = Math.abs(1 / rayDirY);
         let perpWallDist;
 
         let stepX, stepY;
         let hit = 0, side;
-        let hitType = '';
 
         if (rayDirX < 0) {
           stepX = -1;
@@ -149,51 +144,47 @@
             mapY += stepY;
             side = 1;
           }
-          const cell = map[mapY][mapX];
-          if (cell === '#' || cell === 'D') {
-            hit = 1;
-            hitType = cell;
-          } else if (cell === 'O') {
-            // Open door, treat as empty space
-          } else {
-            // Empty space
-          }
+          const cell = map[mapY]?.[mapX];
+          if (cell === '#' || cell === 'D') hit = 1;
         }
 
         if (side === 0) perpWallDist = (mapX - posX + (1 - stepX) / 2) / rayDirX;
         else perpWallDist = (mapY - posY + (1 - stepY) / 2) / rayDirY;
 
         const lineHeight = Math.floor(h / perpWallDist);
-        let drawStart = -lineHeight / 2 + h / 2;
-        let drawEnd = lineHeight / 2 + h / 2;
+        const drawStart = -lineHeight / 2 + h / 2;
+        const drawEnd = lineHeight / 2 + h / 2;
 
-        if (drawStart < 0) drawStart = 0;
-        if (drawEnd >= h) drawEnd = h - 1;
+        let shade;
+        const cell = map[mapY]?.[mapX];
+        if (cell === 'D') shade = 100;
+        else shade = side === 1 ? 180 : 255;
 
-        if (hitType === '#') {
-          ctx.fillStyle = side === 1 ? '#888' : '#aaa';
-          ctx.fillRect(x, drawStart, 1, drawEnd - drawStart);
-        } else if (hitType === 'D') {
-          ctx.fillStyle = side === 1 ? '#444' : '#666';
-          ctx.fillRect(x, drawStart, 1, drawEnd - drawStart);
-        }
+        ctx.strokeStyle = `rgb(${shade},${shade},${shade})`;
+        ctx.beginPath();
+        ctx.moveTo(x, drawStart);
+        ctx.lineTo(x, drawEnd);
+        ctx.stroke();
       }
 
       const moveSpeed = 0.05;
       const rotSpeed = 0.03;
 
+      // Movement logic using isWalkable()
       if (keys['arrowup'] || keys['w']) {
         const newX = posX + dirX * moveSpeed;
         const newY = posY + dirY * moveSpeed;
-        if (map[Math.floor(posY)][Math.floor(newX)] === '.') posX = newX;
-        if (map[Math.floor(newY)][Math.floor(posX)] === '.') posY = newY;
+        if (isWalkable(newX, posY)) posX = newX;
+        if (isWalkable(posX, newY)) posY = newY;
       }
       if (keys['arrowdown'] || keys['s']) {
         const newX = posX - dirX * moveSpeed;
         const newY = posY - dirY * moveSpeed;
-        if (map[Math.floor(posY)][Math.floor(newX)] === '.') posX = newX;
-        if (map[Math.floor(newY)][Math.floor(posX)] === '.') posY = newY;
+        if (isWalkable(newX, posY)) posX = newX;
+        if (isWalkable(posX, newY)) posY = newY;
       }
+
+      // Rotation
       if (keys['arrowright'] || keys['d']) {
         const oldDirX = dirX;
         dirX = dirX * Math.cos(-rotSpeed) - dirY * Math.sin(-rotSpeed);
