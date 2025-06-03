@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>Textured Raycasting Game (Fast)</title>
+  <title>Textured Raycasting Game (With Doors)</title>
   <style>
     html, body {
       margin: 0; padding: 0; overflow: hidden; background: black; height: 100%; width: 100%;
@@ -13,57 +13,85 @@
   </style>
 </head>
 <body>
-  <canvas id="game"></canvas>
-  <script>
-    const canvas = document.getElementById("game");
-    const ctx = canvas.getContext("2d");
+<canvas id="game"></canvas>
+<script>
+  const canvas = document.getElementById("game");
+  const ctx = canvas.getContext("2d");
 
-    function resize() {
-      canvas.width = window.innerWidth;
-      canvas.height = window.innerHeight;
+  function resize() {
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+  }
+  resize();
+  window.addEventListener("resize", resize);
+
+  const map = [
+    "########",
+    "#......#",
+    "#..##..#",
+    "#..D...#",
+    "###..###",
+    "#......#",
+    "#......#",
+    "########"
+  ];
+
+  let posX = 3.5, posY = 3.5;
+  let dirX = 1, dirY = 0;
+  let planeX = 0, planeY = 0.66;
+
+  const keys = {};
+  let canOpen = true;
+
+  document.addEventListener("keydown", e => {
+    const key = e.key.toLowerCase();
+    keys[key] = true;
+
+    if (key === "e" && canOpen) {
+      canOpen = false;
+      const checkX = Math.floor(posX + dirX);
+      const checkY = Math.floor(posY + dirY);
+      if (map[checkY][checkX] === "D") {
+        map[checkY] = map[checkY].substring(0, checkX) + "." + map[checkY].substring(checkX + 1);
+      }
     }
-    resize();
-    window.addEventListener("resize", resize);
+  });
 
-    const map = [
-      "########",
-      "#......#",
-      "#..##..#",
-      "#......#",
-      "###..###",
-      "#......#",
-      "#......#",
-      "########"
-    ];
+  document.addEventListener("keyup", e => {
+    keys[e.key.toLowerCase()] = false;
+    if (e.key.toLowerCase() === "e") canOpen = true;
+  });
 
-    let posX = 3.5, posY = 3.5;
-    let dirX = 1, dirY = 0;
-    let planeX = 0, planeY = 0.66;
+  const wallTexture = new Image();
+  wallTexture.src = "https://i.imgur.com/8bJHd5J.png"; // Wall texture
 
-    const keys = {};
-    document.addEventListener("keydown", e => keys[e.key.toLowerCase()] = true);
-    document.addEventListener("keyup", e => keys[e.key.toLowerCase()] = false);
+  const doorTexture = new Image();
+  doorTexture.src = "https://i.imgur.com/fHyEMsl.png"; // Door texture
 
-    const wallTexture = new Image();
-    wallTexture.src = "https://i.imgur.com/8bJHd5J.png"; // example texture (64x64)
+  wallTexture.onload = () => {
+    const texSlices = [], doorTexSlices = [];
 
-    wallTexture.onload = () => {
-      // Precut vertical stripes for fast rendering
-      const texSlices = [];
+    function sliceTexture(sourceImg, sliceArray) {
       const texCanvas = document.createElement("canvas");
-      texCanvas.width = wallTexture.width;
-      texCanvas.height = wallTexture.height;
+      texCanvas.width = sourceImg.width;
+      texCanvas.height = sourceImg.height;
       const texCtx = texCanvas.getContext("2d");
-      texCtx.drawImage(wallTexture, 0, 0);
+      texCtx.drawImage(sourceImg, 0, 0);
 
-      for (let x = 0; x < wallTexture.width; x++) {
+      for (let x = 0; x < sourceImg.width; x++) {
         const slice = document.createElement("canvas");
         slice.width = 1;
-        slice.height = wallTexture.height;
+        slice.height = sourceImg.height;
         const sliceCtx = slice.getContext("2d");
-        sliceCtx.drawImage(texCanvas, x, 0, 1, wallTexture.height, 0, 0, 1, wallTexture.height);
-        texSlices.push(slice);
+        sliceCtx.drawImage(texCanvas, x, 0, 1, sourceImg.height, 0, 0, 1, sourceImg.height);
+        sliceArray.push(slice);
       }
+    }
+
+    sliceTexture(wallTexture, texSlices);
+
+    doorTexture.onload = () => {
+      sliceTexture(doorTexture, doorTexSlices);
 
       function gameLoop() {
         const w = canvas.width;
@@ -113,7 +141,8 @@
               mapY += stepY;
               side = 1;
             }
-            if (map[mapY][mapX] === "#") hit = 1;
+            const cell = map[mapY][mapX];
+            if (cell === "#" || cell === "D") hit = 1;
           }
 
           if (side === 0)
@@ -136,7 +165,8 @@
           if (side === 0 && rayDirX > 0) texX = wallTexture.width - texX - 1;
           if (side === 1 && rayDirY < 0) texX = wallTexture.width - texX - 1;
 
-          const texSlice = texSlices[texX];
+          const tile = map[mapY][mapX];
+          const texSlice = (tile === "D" ? doorTexSlices : texSlices)[texX];
           ctx.drawImage(texSlice, 0, 0, 1, wallTexture.height, x, drawStart, 1, drawEnd - drawStart);
         }
 
@@ -174,6 +204,7 @@
 
       gameLoop();
     };
-  </script>
+  };
+</script>
 </body>
 </html>
