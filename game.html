@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>Raycaster with Doors - Large Map</title>
+  <title>Raycaster with Door to Smaller Room</title>
   <style>
     html, body {
       margin: 0; padding: 0; overflow: hidden; background: black;
@@ -44,33 +44,31 @@
         document.exitFullscreen();
     };
 
-    // Larger 20x20 map with multiple rooms and doors ('D')
+    // Map: Large enclosed area with smaller enclosed room inside
+    // '#' = wall, '.' = floor, 'D' = door (closed)
     const map = [
       "####################",
-      "#...........#......#",
-      "#.######.###.#.####.#",
-      "#.#....#...#.#....#.#",
-      "#.#.D..###.#.####.#.#",
-      "#.#....#.#.#.#..#.#.#",
-      "#.######.#.#.#D.#.#.#",
-      "#........#.#.#..#.#.#",
-      "##########.#.####.#.#",
-      "#..........#......#.#",
-      "#.################.#",
-      "#.#...............#.#",
-      "#.#.###########D#.#.#",
-      "#.#.#.........#.#.#.#",
-      "#.#.#.#######.#.#.#.#",
-      "#.#.#.#.....#.#.#.#.#",
-      "#.#.#.#.###.#.#.#.#.#",
-      "#...#.#.#.#...#...#.#",
-      "#####.#.#.#########.#",
+      "#..................#",
+      "#..................#",
+      "#..................#",
+      "#..................#",
+      "#..................#",
+      "#.......######.....#",
+      "#.......#....#.....#",
+      "#.......#..D.#.....#",
+      "#.......#....#.....#",
+      "#.......######.....#",
+      "#..................#",
+      "#..................#",
+      "#..................#",
+      "#..................#",
       "####################"
     ];
+
     const mapWidth = map[0].length;
     const mapHeight = map.length;
 
-    let posX = 1.5, posY = 1.5;
+    let posX = 2.5, posY = 2.5; // start in big room
     let dirX = 1, dirY = 0;
     let planeX = 0, planeY = 0.66;
     const keys = {};
@@ -140,7 +138,7 @@
           const shade = side === 1 ? 180 : 255;
           color = `rgb(${shade},${shade},${shade})`;
         } else if (hitChar === 'D') {
-          color = side === 1 ? `rgb(160, 90, 30)` : `rgb(200, 120, 50)`; // wood door shades
+          color = side === 1 ? `rgb(160, 90, 30)` : `rgb(200, 120, 50)`; // door colors
         }
 
         ctx.strokeStyle = color;
@@ -153,19 +151,21 @@
       const moveSpeed = 0.05;
       const rotSpeed = 0.03;
 
+      // Movement forward/back and collision with walls and closed doors
       const forwardX = posX + dirX * moveSpeed;
       const forwardY = posY + dirY * moveSpeed;
-
       if (keys['w'] || keys['arrowup']) {
         if (map[Math.floor(posY)][Math.floor(forwardX)] === '.') posX = forwardX;
         if (map[Math.floor(forwardY)][Math.floor(posX)] === '.') posY = forwardY;
       }
+      const backX = posX - dirX * moveSpeed;
+      const backY = posY - dirY * moveSpeed;
       if (keys['s'] || keys['arrowdown']) {
-        const backX = posX - dirX * moveSpeed;
-        const backY = posY - dirY * moveSpeed;
         if (map[Math.floor(posY)][Math.floor(backX)] === '.') posX = backX;
         if (map[Math.floor(backY)][Math.floor(posX)] === '.') posY = backY;
       }
+
+      // Rotation
       if (keys['d'] || keys['arrowright']) {
         const oldDirX = dirX;
         dirX = dirX * Math.cos(-rotSpeed) - dirY * Math.sin(-rotSpeed);
@@ -183,16 +183,14 @@
         planeY = oldPlaneX * Math.sin(rotSpeed) + planeY * Math.cos(rotSpeed);
       }
 
-      // Door toggle
+      // Door toggle (open door by pressing E)
       if (keys['e'] && timestamp - lastToggle > 300) {
         const tx = Math.floor(posX + dirX);
         const ty = Math.floor(posY + dirY);
-        if (map[ty] && map[ty][tx]) {
-          const char = map[ty][tx];
-          if (char === 'D') {
-            map[ty] = map[ty].substring(0, tx) + '.' + map[ty].substring(tx + 1);
-            lastToggle = timestamp;
-          }
+        if (map[ty] && map[ty][tx] === 'D') {
+          // Replace door 'D' with '.' (open space)
+          map[ty] = map[ty].substring(0, tx) + '.' + map[ty].substring(tx + 1);
+          lastToggle = timestamp;
         }
       }
 
