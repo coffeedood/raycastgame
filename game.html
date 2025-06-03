@@ -1,10 +1,11 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>Mini Doom Raycasting Game</title>
+  <title>Mini Doom Raycasting Game with Doors</title>
   <style>
     html, body {
       margin: 0; padding: 0; overflow: hidden; background: black; height: 100%; width: 100%;
+      color: white; font-family: Arial, sans-serif;
     }
     canvas {
       display: block;
@@ -36,9 +37,6 @@
     const canvas = document.getElementById('game');
     const ctx = canvas.getContext('2d');
 
-    const wallTexture = new Image();
-    wallTexture.src = 'wall.png'; // Place wall.png in the same folder
-
     function resize() {
       canvas.width = window.innerWidth;
       canvas.height = window.innerHeight;
@@ -46,19 +44,29 @@
     resize();
     window.addEventListener('resize', resize);
 
-    document.getElementById('fullscreenBtn').onclick = () => {
+    // Fullscreen toggle button
+    const fullscreenBtn = document.getElementById('fullscreenBtn');
+    fullscreenBtn.addEventListener('click', () => {
       if (document.fullscreenElement) {
         document.exitFullscreen();
       } else {
         document.documentElement.requestFullscreen();
       }
-    };
+    });
 
+    // Load textures
+    const wallTexture = new Image();
+    wallTexture.src = 'wall.png'; // Replace with your wall texture path
+
+    const doorTexture = new Image();
+    doorTexture.src = 'door.png'; // Replace with your door texture path
+
+    // Simple raycasting game map
     const map = [
       "########",
       "#......#",
       "#..##..#",
-      "#......#",
+      "#..D...#",
       "###..###",
       "#......#",
       "#......#",
@@ -68,12 +76,27 @@
     const mapHeight = map.length;
 
     let posX = 3.5, posY = 3.5;
-    let dirX = -1, dirY = 0;
+    let dirX = 1, dirY = 0;
     let planeX = 0, planeY = 0.66;
 
     const keys = {};
-    document.addEventListener('keydown', e => keys[e.key.toLowerCase()] = true);
+    document.addEventListener('keydown', e => {
+      keys[e.key.toLowerCase()] = true;
+      if (e.key.toLowerCase() === 'e') {
+        interact();
+      }
+    });
     document.addEventListener('keyup', e => keys[e.key.toLowerCase()] = false);
+
+    function interact() {
+      const facingX = Math.floor(posX + dirX);
+      const facingY = Math.floor(posY + dirY);
+      if (map[facingY][facingX] === 'D') {
+        map[facingY] = map[facingY].substring(0, facingX) + 'O' + map[facingY].substring(facingX + 1);
+      } else if (map[facingY][facingX] === 'O') {
+        map[facingY] = map[facingY].substring(0, facingX) + 'D' + map[facingY].substring(facingX + 1);
+      }
+    }
 
     function gameLoop() {
       const w = canvas.width;
@@ -98,6 +121,7 @@
 
         let stepX, stepY;
         let hit = 0, side;
+        let hitType = '';
 
         if (rayDirX < 0) {
           stepX = -1;
@@ -125,48 +149,52 @@
             mapY += stepY;
             side = 1;
           }
-          if (map[mapY][mapX] === '#') hit = 1;
+          const cell = map[mapY][mapX];
+          if (cell === '#' || cell === 'D') {
+            hit = 1;
+            hitType = cell;
+          } else if (cell === 'O') {
+            // Open door, treat as empty space
+          } else {
+            // Empty space
+          }
         }
 
         if (side === 0) perpWallDist = (mapX - posX + (1 - stepX) / 2) / rayDirX;
         else perpWallDist = (mapY - posY + (1 - stepY) / 2) / rayDirY;
 
         const lineHeight = Math.floor(h / perpWallDist);
-        const drawStart = Math.max(0, -lineHeight / 2 + h / 2);
-        const drawEnd = Math.min(h, lineHeight / 2 + h / 2);
+        let drawStart = -lineHeight / 2 + h / 2;
+        let drawEnd = lineHeight / 2 + h / 2;
 
-        const wallX = side === 0
-          ? posY + perpWallDist * rayDirY
-          : posX + perpWallDist * rayDirX;
-        const texX = Math.floor((wallX - Math.floor(wallX)) * wallTexture.width);
-        const texColumn = ctx.getImageData(texX, 0, 1, wallTexture.height);
+        if (drawStart < 0) drawStart = 0;
+        if (drawEnd >= h) drawEnd = h - 1;
 
-        if (wallTexture.complete) {
-          for (let y = drawStart; y < drawEnd; y++) {
-            const texY = Math.floor((y - drawStart) / (drawEnd - drawStart) * wallTexture.height);
-            const i = texY * 4; // 4 bytes per pixel
-            const r = texColumn.data[i];
-            const g = texColumn.data[i + 1];
-            const b = texColumn.data[i + 2];
-            ctx.fillStyle = `rgb(${r},${g},${b})`;
-            ctx.fillRect(x, y, 1, 1);
-          }
+        if (hitType === '#') {
+          ctx.fillStyle = side === 1 ? '#888' : '#aaa';
+          ctx.fillRect(x, drawStart, 1, drawEnd - drawStart);
+        } else if (hitType === 'D') {
+          ctx.fillStyle = side === 1 ? '#444' : '#666';
+          ctx.fillRect(x, drawStart, 1, drawEnd - drawStart);
         }
       }
 
-      // Movement
       const moveSpeed = 0.05;
       const rotSpeed = 0.03;
 
-      if (keys['w'] || keys['arrowup']) {
-        if (map[Math.floor(posY)][Math.floor(posX + dirX * moveSpeed)] === '.') posX += dirX * moveSpeed;
-        if (map[Math.floor(posY + dirY * moveSpeed)][Math.floor(posX)] === '.') posY += dirY * moveSpeed;
+      if (keys['arrowup'] || keys['w']) {
+        const newX = posX + dirX * moveSpeed;
+        const newY = posY + dirY * moveSpeed;
+        if (map[Math.floor(posY)][Math.floor(newX)] === '.') posX = newX;
+        if (map[Math.floor(newY)][Math.floor(posX)] === '.') posY = newY;
       }
-      if (keys['s'] || keys['arrowdown']) {
-        if (map[Math.floor(posY)][Math.floor(posX - dirX * moveSpeed)] === '.') posX -= dirX * moveSpeed;
-        if (map[Math.floor(posY - dirY * moveSpeed)][Math.floor(posX)] === '.') posY -= dirY * moveSpeed;
+      if (keys['arrowdown'] || keys['s']) {
+        const newX = posX - dirX * moveSpeed;
+        const newY = posY - dirY * moveSpeed;
+        if (map[Math.floor(posY)][Math.floor(newX)] === '.') posX = newX;
+        if (map[Math.floor(newY)][Math.floor(posX)] === '.') posY = newY;
       }
-      if (keys['d'] || keys['arrowright']) {
+      if (keys['arrowright'] || keys['d']) {
         const oldDirX = dirX;
         dirX = dirX * Math.cos(-rotSpeed) - dirY * Math.sin(-rotSpeed);
         dirY = oldDirX * Math.sin(-rotSpeed) + dirY * Math.cos(-rotSpeed);
@@ -174,7 +202,7 @@
         planeX = planeX * Math.cos(-rotSpeed) - planeY * Math.sin(-rotSpeed);
         planeY = oldPlaneX * Math.sin(-rotSpeed) + planeY * Math.cos(-rotSpeed);
       }
-      if (keys['a'] || keys['arrowleft']) {
+      if (keys['arrowleft'] || keys['a']) {
         const oldDirX = dirX;
         dirX = dirX * Math.cos(rotSpeed) - dirY * Math.sin(rotSpeed);
         dirY = oldDirX * Math.sin(rotSpeed) + dirY * Math.cos(rotSpeed);
@@ -186,9 +214,7 @@
       requestAnimationFrame(gameLoop);
     }
 
-    wallTexture.onload = () => {
-      gameLoop();
-    };
+    gameLoop();
   </script>
 </body>
 </html>
