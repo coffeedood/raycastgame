@@ -53,17 +53,17 @@
       }
     });
 
-    // Map with doors: D = closed door, O = open door
-    const map = [
+    let map = [
       "########",
       "#......#",
-      "#..##..#",
-      "#..D...#",
+      "#..D#..#",
+      "#......#",
       "###..###",
       "#......#",
       "#......#",
       "########"
     ];
+
     const mapWidth = map[0].length;
     const mapHeight = map.length;
 
@@ -75,30 +75,21 @@
     document.addEventListener('keydown', e => keys[e.key.toLowerCase()] = true);
     document.addEventListener('keyup', e => keys[e.key.toLowerCase()] = false);
 
-    function isWalkable(x, y) {
-      const cell = map[Math.floor(y)]?.[Math.floor(x)];
-      return cell === '.' || cell === 'O';
-    }
-
-    function toggleDoor() {
-      const tx = Math.floor(posX + dirX);
-      const ty = Math.floor(posY + dirY);
-      const target = map[ty]?.[tx];
-      if (target === 'D') {
-        map[ty] = map[ty].substring(0, tx) + 'O' + map[ty].substring(tx + 1);
-      } else if (target === 'O') {
-        map[ty] = map[ty].substring(0, tx) + 'D' + map[ty].substring(tx + 1);
-      }
-    }
-
     document.addEventListener('keydown', e => {
-      if (e.key.toLowerCase() === 'e') toggleDoor();
+      if (e.key.toLowerCase() === 'e') {
+        const targetX = Math.floor(posX + dirX);
+        const targetY = Math.floor(posY + dirY);
+        if (map[targetY][targetX] === 'D') {
+          map[targetY] = map[targetY].substring(0, targetX) + '.' + map[targetY].substring(targetX + 1);
+        } else if (map[targetY][targetX] === '.') {
+          map[targetY] = map[targetY].substring(0, targetX) + 'D' + map[targetY].substring(targetX + 1);
+        }
+      }
     });
 
     function gameLoop() {
       const w = canvas.width;
       const h = canvas.height;
-
       ctx.fillStyle = 'black';
       ctx.fillRect(0, 0, w, h);
 
@@ -125,7 +116,6 @@
           stepX = 1;
           sideDistX = (mapX + 1.0 - posX) * deltaDistX;
         }
-
         if (rayDirY < 0) {
           stepY = -1;
           sideDistY = (posY - mapY) * deltaDistY;
@@ -133,6 +123,8 @@
           stepY = 1;
           sideDistY = (mapY + 1.0 - posY) * deltaDistY;
         }
+
+        let wallType = '#';
 
         while (hit === 0) {
           if (sideDistX < sideDistY) {
@@ -144,8 +136,11 @@
             mapY += stepY;
             side = 1;
           }
-          const cell = map[mapY]?.[mapX];
-          if (cell === '#' || cell === 'D') hit = 1;
+          const cell = map[mapY][mapX];
+          if (cell === '#' || cell === 'D') {
+            wallType = cell;
+            hit = 1;
+          }
         }
 
         if (side === 0) perpWallDist = (mapX - posX + (1 - stepX) / 2) / rayDirX;
@@ -155,12 +150,11 @@
         const drawStart = -lineHeight / 2 + h / 2;
         const drawEnd = lineHeight / 2 + h / 2;
 
-        let shade;
-        const cell = map[mapY]?.[mapX];
-        if (cell === 'D') shade = 100;
-        else shade = side === 1 ? 180 : 255;
+        let color;
+        if (wallType === '#') color = side === 1 ? 'gray' : 'white';
+        else if (wallType === 'D') color = side === 1 ? '#884400' : '#cc6600';
 
-        ctx.strokeStyle = `rgb(${shade},${shade},${shade})`;
+        ctx.strokeStyle = color;
         ctx.beginPath();
         ctx.moveTo(x, drawStart);
         ctx.lineTo(x, drawEnd);
@@ -170,22 +164,15 @@
       const moveSpeed = 0.05;
       const rotSpeed = 0.03;
 
-      // Movement logic using isWalkable()
-      if (keys['arrowup'] || keys['w']) {
-        const newX = posX + dirX * moveSpeed;
-        const newY = posY + dirY * moveSpeed;
-        if (isWalkable(newX, posY)) posX = newX;
-        if (isWalkable(posX, newY)) posY = newY;
+      if (keys['w']) {
+        if (map[Math.floor(posY)][Math.floor(posX + dirX * moveSpeed)] === '.') posX += dirX * moveSpeed;
+        if (map[Math.floor(posY + dirY * moveSpeed)][Math.floor(posX)] === '.') posY += dirY * moveSpeed;
       }
-      if (keys['arrowdown'] || keys['s']) {
-        const newX = posX - dirX * moveSpeed;
-        const newY = posY - dirY * moveSpeed;
-        if (isWalkable(newX, posY)) posX = newX;
-        if (isWalkable(posX, newY)) posY = newY;
+      if (keys['s']) {
+        if (map[Math.floor(posY)][Math.floor(posX - dirX * moveSpeed)] === '.') posX -= dirX * moveSpeed;
+        if (map[Math.floor(posY - dirY * moveSpeed)][Math.floor(posX)] === '.') posY -= dirY * moveSpeed;
       }
-
-      // Rotation
-      if (keys['arrowright'] || keys['d']) {
+      if (keys['d']) {
         const oldDirX = dirX;
         dirX = dirX * Math.cos(-rotSpeed) - dirY * Math.sin(-rotSpeed);
         dirY = oldDirX * Math.sin(-rotSpeed) + dirY * Math.cos(-rotSpeed);
@@ -193,7 +180,7 @@
         planeX = planeX * Math.cos(-rotSpeed) - planeY * Math.sin(-rotSpeed);
         planeY = oldPlaneX * Math.sin(-rotSpeed) + planeY * Math.cos(-rotSpeed);
       }
-      if (keys['arrowleft'] || keys['a']) {
+      if (keys['a']) {
         const oldDirX = dirX;
         dirX = dirX * Math.cos(rotSpeed) - dirY * Math.sin(rotSpeed);
         dirY = oldDirX * Math.sin(rotSpeed) + dirY * Math.cos(rotSpeed);
