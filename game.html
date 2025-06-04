@@ -44,8 +44,6 @@
         document.exitFullscreen();
     };
 
-    // Map: Large enclosed area with smaller enclosed room inside
-    // '#' = wall, '.' = floor, 'D' = door (closed)
     const map = [
       "####################",
       "#..................#",
@@ -68,7 +66,7 @@
     const mapWidth = map[0].length;
     const mapHeight = map.length;
 
-    let posX = 2.5, posY = 2.5; // start in big room
+    let posX = 2.5, posY = 2.5;
     let dirX = 1, dirY = 0;
     let planeX = 0, planeY = 0.66;
     const keys = {};
@@ -138,7 +136,7 @@
           const shade = side === 1 ? 180 : 255;
           color = `rgb(${shade},${shade},${shade})`;
         } else if (hitChar === 'D') {
-          color = side === 1 ? `rgb(160, 90, 30)` : `rgb(200, 120, 50)`; // door colors
+          color = side === 1 ? `rgb(160, 90, 30)` : `rgb(200, 120, 50)`;
         }
 
         ctx.strokeStyle = color;
@@ -151,7 +149,6 @@
       const moveSpeed = 0.05;
       const rotSpeed = 0.03;
 
-      // Movement forward/back and collision with walls and closed doors
       const forwardX = posX + dirX * moveSpeed;
       const forwardY = posY + dirY * moveSpeed;
       if (keys['w'] || keys['arrowup']) {
@@ -165,16 +162,8 @@
         if (map[Math.floor(backY)][Math.floor(posX)] === '.') posY = backY;
       }
 
-      // Rotation
+      // ✅ REVERSED Rotation directions to behave correctly
       if (keys['d'] || keys['arrowright']) {
-        const oldDirX = dirX;
-        dirX = dirX * Math.cos(-rotSpeed) - dirY * Math.sin(-rotSpeed);
-        dirY = oldDirX * Math.sin(-rotSpeed) + dirY * Math.cos(-rotSpeed);
-        const oldPlaneX = planeX;
-        planeX = planeX * Math.cos(-rotSpeed) - planeY * Math.sin(-rotSpeed);
-        planeY = oldPlaneX * Math.sin(-rotSpeed) + planeY * Math.cos(-rotSpeed);
-      }
-      if (keys['a'] || keys['arrowleft']) {
         const oldDirX = dirX;
         dirX = dirX * Math.cos(rotSpeed) - dirY * Math.sin(rotSpeed);
         dirY = oldDirX * Math.sin(rotSpeed) + dirY * Math.cos(rotSpeed);
@@ -182,13 +171,19 @@
         planeX = planeX * Math.cos(rotSpeed) - planeY * Math.sin(rotSpeed);
         planeY = oldPlaneX * Math.sin(rotSpeed) + planeY * Math.cos(rotSpeed);
       }
+      if (keys['a'] || keys['arrowleft']) {
+        const oldDirX = dirX;
+        dirX = dirX * Math.cos(-rotSpeed) - dirY * Math.sin(-rotSpeed);
+        dirY = oldDirX * Math.sin(-rotSpeed) + dirY * Math.cos(-rotSpeed);
+        const oldPlaneX = planeX;
+        planeX = planeX * Math.cos(-rotSpeed) - planeY * Math.sin(-rotSpeed);
+        planeY = oldPlaneX * Math.sin(-rotSpeed) + planeY * Math.cos(-rotSpeed);
+      }
 
-      // Door toggle (open door by pressing E)
       if (keys['e'] && timestamp - lastToggle > 300) {
         const tx = Math.floor(posX + dirX);
         const ty = Math.floor(posY + dirY);
         if (map[ty] && map[ty][tx] === 'D') {
-          // Replace door 'D' with '.' (open space)
           map[ty] = map[ty].substring(0, tx) + '.' + map[ty].substring(tx + 1);
           lastToggle = timestamp;
         }
