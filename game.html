@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>Raycaster with Door to Smaller Room</title>
+  <title>Raycaster with Door and Minimap</title>
   <style>
     html, body {
       margin: 0; padding: 0; overflow: hidden; background: black;
@@ -162,7 +162,7 @@
         if (map[Math.floor(backY)][Math.floor(posX)] === '.') posY = backY;
       }
 
-      // ✅ REVERSED Rotation directions to behave correctly
+      // REVERSED ROTATION (Fixing left-right behavior)
       if (keys['d'] || keys['arrowright']) {
         const oldDirX = dirX;
         dirX = dirX * Math.cos(rotSpeed) - dirY * Math.sin(rotSpeed);
@@ -180,6 +180,7 @@
         planeY = oldPlaneX * Math.sin(-rotSpeed) + planeY * Math.cos(-rotSpeed);
       }
 
+      // Door toggle
       if (keys['e'] && timestamp - lastToggle > 300) {
         const tx = Math.floor(posX + dirX);
         const ty = Math.floor(posY + dirY);
@@ -188,6 +189,40 @@
           lastToggle = timestamp;
         }
       }
+
+      // === MiniMap ===
+      const tileSize = 5;
+      const minimapWidth = mapWidth * tileSize;
+      const minimapHeight = mapHeight * tileSize;
+      const offsetX = canvas.width - minimapWidth - 10;
+      const offsetY = 10;
+
+      ctx.fillStyle = "rgba(0, 0, 0, 0.5)";
+      ctx.fillRect(offsetX - 2, offsetY - 2, minimapWidth + 4, minimapHeight + 4);
+
+      for (let y = 0; y < mapHeight; y++) {
+        for (let x = 0; x < mapWidth; x++) {
+          const cell = map[y][x];
+          if (cell === '#') ctx.fillStyle = "#888";
+          else if (cell === 'D') ctx.fillStyle = "#a52a2a";
+          else ctx.fillStyle = "#222";
+          ctx.fillRect(offsetX + x * tileSize, offsetY + y * tileSize, tileSize, tileSize);
+        }
+      }
+
+      ctx.fillStyle = "red";
+      ctx.beginPath();
+      ctx.arc(offsetX + posX * tileSize, offsetY + posY * tileSize, 2, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.strokeStyle = "red";
+      ctx.beginPath();
+      ctx.moveTo(offsetX + posX * tileSize, offsetY + posY * tileSize);
+      ctx.lineTo(
+        offsetX + (posX + dirX * 0.7) * tileSize,
+        offsetY + (posY + dirY * 0.7) * tileSize
+      );
+      ctx.stroke();
 
       requestAnimationFrame(gameLoop);
     }
