@@ -45,6 +45,8 @@
     };
 
     let currentFloor = 1;
+    let selectedFloor = 1;
+    let selectingFloor = false;
 
     const baseMap = [
       "####################",
@@ -55,7 +57,7 @@
       "#..................#",
       "#.......######.....#",
       "#.......#....#.....#",
-      "#.......#...BD.....#", // button and door
+      "#.......#...BD.....#",
       "#.......#....#.....#",
       "#.......######.....#",
       "#..................#",
@@ -74,7 +76,7 @@
       "#..................#",
       "#.......######.....#",
       "#.......#....#.....#",
-      "#.......#...B#.....#", // button, sealed door
+      "#.......#...B#.....#",
       "#.......#....#.....#",
       "#.......######.....#",
       "#..................#",
@@ -85,27 +87,34 @@
     ];
 
     let map = [...baseMap];
-
-    function simulateElevator() {
-      if (currentFloor === 1) {
-        map = [...altMap];
-        currentFloor = 2;
-        alert("Elevator activated. Now on Floor 2.");
-      } else {
-        map = [...baseMap];
-        currentFloor = 1;
-        alert("Elevator activated. Now on Floor 1.");
-      }
-    }
-
     const mapWidth = map[0].length;
     const mapHeight = map.length;
+
+    function simulateElevator(targetFloor) {
+      currentFloor = targetFloor;
+      map = (currentFloor === 1) ? [...baseMap] : [...altMap];
+      alert("Now on Floor " + currentFloor);
+    }
 
     let posX = 2.5, posY = 2.5;
     let dirX = 1, dirY = 0;
     let planeX = 0, planeY = 0.66;
+
     const keys = {};
-    document.addEventListener("keydown", e => keys[e.key.toLowerCase()] = true);
+    document.addEventListener("keydown", e => {
+      keys[e.key.toLowerCase()] = true;
+
+      if (selectingFloor) {
+        if (e.key === "ArrowUp") {
+          selectedFloor = Math.max(1, selectedFloor - 1);
+        } else if (e.key === "ArrowDown") {
+          selectedFloor = Math.min(2, selectedFloor + 1);
+        } else if (e.key === "Enter") {
+          simulateElevator(selectedFloor);
+          selectingFloor = false;
+        }
+      }
+    });
     document.addEventListener("keyup", e => keys[e.key.toLowerCase()] = false);
 
     let lastToggle = 0;
@@ -184,48 +193,51 @@
       const moveSpeed = 0.05;
       const rotSpeed = 0.03;
 
-      const forwardX = posX + dirX * moveSpeed;
-      const forwardY = posY + dirY * moveSpeed;
-      if (keys['w'] || keys['arrowup']) {
-        if (map[Math.floor(posY)][Math.floor(forwardX)] === '.') posX = forwardX;
-        if (map[Math.floor(forwardY)][Math.floor(posX)] === '.') posY = forwardY;
-      }
-      const backX = posX - dirX * moveSpeed;
-      const backY = posY - dirY * moveSpeed;
-      if (keys['s'] || keys['arrowdown']) {
-        if (map[Math.floor(posY)][Math.floor(backX)] === '.') posX = backX;
-        if (map[Math.floor(backY)][Math.floor(posX)] === '.') posY = backY;
-      }
+      if (!selectingFloor) {
+        const forwardX = posX + dirX * moveSpeed;
+        const forwardY = posY + dirY * moveSpeed;
+        if (keys['w'] || keys['arrowup']) {
+          if (map[Math.floor(posY)][Math.floor(forwardX)] === '.') posX = forwardX;
+          if (map[Math.floor(forwardY)][Math.floor(posX)] === '.') posY = forwardY;
+        }
+        const backX = posX - dirX * moveSpeed;
+        const backY = posY - dirY * moveSpeed;
+        if (keys['s'] || keys['arrowdown']) {
+          if (map[Math.floor(posY)][Math.floor(backX)] === '.') posX = backX;
+          if (map[Math.floor(backY)][Math.floor(posX)] === '.') posY = backY;
+        }
 
-      if (keys['d'] || keys['arrowright']) {
-        const oldDirX = dirX;
-        dirX = dirX * Math.cos(rotSpeed) - dirY * Math.sin(rotSpeed);
-        dirY = oldDirX * Math.sin(rotSpeed) + dirY * Math.cos(rotSpeed);
-        const oldPlaneX = planeX;
-        planeX = planeX * Math.cos(rotSpeed) - planeY * Math.sin(rotSpeed);
-        planeY = oldPlaneX * Math.sin(rotSpeed) + planeY * Math.cos(rotSpeed);
-      }
-      if (keys['a'] || keys['arrowleft']) {
-        const oldDirX = dirX;
-        dirX = dirX * Math.cos(-rotSpeed) - dirY * Math.sin(-rotSpeed);
-        dirY = oldDirX * Math.sin(-rotSpeed) + dirY * Math.cos(-rotSpeed);
-        const oldPlaneX = planeX;
-        planeX = planeX * Math.cos(-rotSpeed) - planeY * Math.sin(-rotSpeed);
-        planeY = oldPlaneX * Math.sin(-rotSpeed) + planeY * Math.cos(-rotSpeed);
-      }
+        if (keys['d']) {
+          const oldDirX = dirX;
+          dirX = dirX * Math.cos(rotSpeed) - dirY * Math.sin(rotSpeed);
+          dirY = oldDirX * Math.sin(rotSpeed) + dirY * Math.cos(rotSpeed);
+          const oldPlaneX = planeX;
+          planeX = planeX * Math.cos(rotSpeed) - planeY * Math.sin(rotSpeed);
+          planeY = oldPlaneX * Math.sin(rotSpeed) + planeY * Math.cos(rotSpeed);
+        }
 
-      // Door or Button interaction
-      if (keys['e'] && timestamp - lastToggle > 300) {
-        const tx = Math.floor(posX + dirX);
-        const ty = Math.floor(posY + dirY);
-        const cell = map[ty]?.[tx];
+        if (keys['a']) {
+          const oldDirX = dirX;
+          dirX = dirX * Math.cos(-rotSpeed) - dirY * Math.sin(-rotSpeed);
+          dirY = oldDirX * Math.sin(-rotSpeed) + dirY * Math.cos(-rotSpeed);
+          const oldPlaneX = planeX;
+          planeX = planeX * Math.cos(-rotSpeed) - planeY * Math.sin(-rotSpeed);
+          planeY = oldPlaneX * Math.sin(-rotSpeed) + planeY * Math.cos(-rotSpeed);
+        }
 
-        if (cell === 'D') {
-          map[ty] = map[ty].substring(0, tx) + '.' + map[ty].substring(tx + 1);
-          lastToggle = timestamp;
-        } else if (cell === 'B') {
-          simulateElevator();
-          lastToggle = timestamp;
+        if (keys['e'] && timestamp - lastToggle > 300) {
+          const tx = Math.floor(posX + dirX);
+          const ty = Math.floor(posY + dirY);
+          const cell = map[ty]?.[tx];
+
+          if (cell === 'D') {
+            map[ty] = map[ty].substring(0, tx) + '.' + map[ty].substring(tx + 1);
+            lastToggle = timestamp;
+          } else if (cell === 'B') {
+            selectingFloor = true;
+            selectedFloor = currentFloor;
+            lastToggle = timestamp;
+          }
         }
       }
 
@@ -263,6 +275,19 @@
         offsetY + (posY + dirY * 0.7) * tileSize
       );
       ctx.stroke();
+
+      if (selectingFloor) {
+        ctx.fillStyle = "rgba(0,0,0,0.7)";
+        ctx.fillRect(w / 2 - 100, h / 2 - 60, 200, 120);
+        ctx.fillStyle = "white";
+        ctx.font = "16px Arial";
+        ctx.textAlign = "center";
+        ctx.fillText("Select Floor", w / 2, h / 2 - 30);
+        for (let i = 1; i <= 2; i++) {
+          ctx.fillStyle = (i === selectedFloor) ? "yellow" : "gray";
+          ctx.fillText("Floor " + i, w / 2, h / 2 - 10 + i * 20);
+        }
+      }
 
       requestAnimationFrame(gameLoop);
     }
