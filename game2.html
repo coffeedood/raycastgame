@@ -1,17 +1,13 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>Mini Doom Raycasting Game</title>
+  <title>Raycaster with Door and Elevator Button</title>
   <style>
     html, body {
-      margin: 0; padding: 0; overflow: hidden; background: black; height: 100%; width: 100%;
-      color: white; font-family: Arial, sans-serif;
+      margin: 0; padding: 0; overflow: hidden; background: black;
+      height: 100%; width: 100%;
     }
-    canvas {
-      display: block;
-      position: absolute;
-      top: 0; left: 0;
-    }
+    canvas { display: block; }
     #fullscreenBtn {
       position: absolute;
       top: 10px; left: 10px;
@@ -24,9 +20,6 @@
       font-size: 14px;
       border-radius: 4px;
     }
-    #fullscreenBtn:hover {
-      background: #444;
-    }
   </style>
 </head>
 <body>
@@ -34,53 +27,73 @@
   <canvas id="game"></canvas>
 
   <script>
-    const canvas = document.getElementById('game');
-    const ctx = canvas.getContext('2d');
+    const canvas = document.getElementById("game");
+    const ctx = canvas.getContext("2d");
 
     function resize() {
       canvas.width = window.innerWidth;
       canvas.height = window.innerHeight;
     }
     resize();
-    window.addEventListener('resize', resize);
+    window.addEventListener("resize", resize);
 
-    // Fullscreen toggle button
-    const fullscreenBtn = document.getElementById('fullscreenBtn');
-    fullscreenBtn.addEventListener('click', () => {
-      if (document.fullscreenElement) {
-        document.exitFullscreen();
-      } else {
+    document.getElementById("fullscreenBtn").onclick = () => {
+      if (!document.fullscreenElement)
         document.documentElement.requestFullscreen();
-      }
-    });
+      else
+        document.exitFullscreen();
+    };
 
-    // Simple raycasting game map
     const map = [
-      "########",
-      "#......#",
-      "#......#",
-      "#......#",
-      "#......#",
-      "#......#",
-      "#......#",
-      "########"
+      "####################",
+      "#..................#",
+      "#..................#",
+      "#..................#",
+      "#..................#",
+      "#..................#",
+      "#.......######.....#",
+      "#.......#....#.....#",
+      "#.......#...BD.....#", // Button 'B' next to Door 'D'
+      "#.......#....#.....#",
+      "#.......######.....#",
+      "#..................#",
+      "#..................#",
+      "#..................#",
+      "#..................#",
+      "####################"
     ];
+
     const mapWidth = map[0].length;
     const mapHeight = map.length;
 
-    let posX = 3.5, posY = 3.5;
+    let posX = 2.5, posY = 2.5;
     let dirX = 1, dirY = 0;
     let planeX = 0, planeY = 0.66;
-
     const keys = {};
-    document.addEventListener('keydown', e => keys[e.key.toLowerCase()] = true);
-    document.addEventListener('keyup', e => keys[e.key.toLowerCase()] = false);
+    document.addEventListener("keydown", e => keys[e.key.toLowerCase()] = true);
+    document.addEventListener("keyup", e => keys[e.key.toLowerCase()] = false);
 
-    function gameLoop() {
-      const w = canvas.width;
-      const h = canvas.height;
+    let lastToggle = 0;
 
-      ctx.fillStyle = 'black';
+    function simulateElevator() {
+      // Seal off the door and remove the button
+      for (let y = 0; y < map.length; y++) {
+        map[y] = map[y].replace(/D/g, '#');
+        map[y] = map[y].replace(/B/g, '.');
+      }
+
+      // Simulate new floor layout (example change)
+      map[1] = map[1].substring(0, 1) + "#######..........." + map[1].substring(18);
+      map[2] = map[2].substring(0, 1) + "#.....#..........." + map[2].substring(18);
+      map[3] = map[3].substring(0, 1) + "#.....#..........." + map[3].substring(18);
+      map[4] = map[4].substring(0, 1) + "#######..........." + map[4].substring(18);
+
+      alert("Elevator activated. Floor changed.");
+    }
+
+    function gameLoop(timestamp) {
+      const w = canvas.width, h = canvas.height;
+      ctx.fillStyle = "black";
       ctx.fillRect(0, 0, w, h);
 
       for (let x = 0; x < w; x++) {
@@ -92,13 +105,9 @@
         let mapY = Math.floor(posY);
 
         let sideDistX, sideDistY;
-
         const deltaDistX = Math.abs(1 / rayDirX);
         const deltaDistY = Math.abs(1 / rayDirY);
-        let perpWallDist;
-
-        let stepX, stepY;
-        let hit = 0, side;
+        let stepX, stepY, side, hit = 0, hitChar = '';
 
         if (rayDirX < 0) {
           stepX = -1;
@@ -116,7 +125,7 @@
           sideDistY = (mapY + 1.0 - posY) * deltaDistY;
         }
 
-        while (hit === 0) {
+        while (!hit) {
           if (sideDistX < sideDistY) {
             sideDistX += deltaDistX;
             mapX += stepX;
@@ -126,18 +135,29 @@
             mapY += stepY;
             side = 1;
           }
-          if (map[mapY][mapX] === '#') hit = 1;
+          hitChar = map[mapY][mapX];
+          if (hitChar === '#' || hitChar === 'D' || hitChar === 'B') hit = 1;
         }
 
-        if (side === 0) perpWallDist = (mapX - posX + (1 - stepX) / 2) / rayDirX;
-        else perpWallDist = (mapY - posY + (1 - stepY) / 2) / rayDirY;
+        const perpWallDist = side === 0
+          ? (mapX - posX + (1 - stepX) / 2) / rayDirX
+          : (mapY - posY + (1 - stepY) / 2) / rayDirY;
 
         const lineHeight = Math.floor(h / perpWallDist);
         const drawStart = -lineHeight / 2 + h / 2;
         const drawEnd = lineHeight / 2 + h / 2;
 
-        const shade = side === 1 ? 180 : 255;
-        ctx.strokeStyle = `rgb(${shade},${shade},${shade})`;
+        let color;
+        if (hitChar === '#') {
+          const shade = side === 1 ? 180 : 255;
+          color = `rgb(${shade},${shade},${shade})`;
+        } else if (hitChar === 'D') {
+          color = side === 1 ? `rgb(160, 90, 30)` : `rgb(200, 120, 50)`;
+        } else if (hitChar === 'B') {
+          color = side === 1 ? `rgb(50, 180, 50)` : `rgb(70, 220, 70)`;
+        }
+
+        ctx.strokeStyle = color;
         ctx.beginPath();
         ctx.moveTo(x, drawStart);
         ctx.lineTo(x, drawEnd);
@@ -147,23 +167,20 @@
       const moveSpeed = 0.05;
       const rotSpeed = 0.03;
 
-      if (keys['arrowup'] || keys['w']) {
-        if (map[Math.floor(posY)][Math.floor(posX + dirX * moveSpeed)] === '.') posX += dirX * moveSpeed;
-        if (map[Math.floor(posY + dirY * moveSpeed)][Math.floor(posX)] === '.') posY += dirY * moveSpeed;
+      const forwardX = posX + dirX * moveSpeed;
+      const forwardY = posY + dirY * moveSpeed;
+      if (keys['w'] || keys['arrowup']) {
+        if (map[Math.floor(posY)][Math.floor(forwardX)] === '.') posX = forwardX;
+        if (map[Math.floor(forwardY)][Math.floor(posX)] === '.') posY = forwardY;
       }
-      if (keys['arrowdown'] || keys['s']) {
-        if (map[Math.floor(posY)][Math.floor(posX - dirX * moveSpeed)] === '.') posX -= dirX * moveSpeed;
-        if (map[Math.floor(posY - dirY * moveSpeed)][Math.floor(posX)] === '.') posY -= dirY * moveSpeed;
+      const backX = posX - dirX * moveSpeed;
+      const backY = posY - dirY * moveSpeed;
+      if (keys['s'] || keys['arrowdown']) {
+        if (map[Math.floor(posY)][Math.floor(backX)] === '.') posX = backX;
+        if (map[Math.floor(backY)][Math.floor(posX)] === '.') posY = backY;
       }
-      if (keys['arrowright'] || keys['d']) {
-        const oldDirX = dirX;
-        dirX = dirX * Math.cos(-rotSpeed) - dirY * Math.sin(-rotSpeed);
-        dirY = oldDirX * Math.sin(-rotSpeed) + dirY * Math.cos(-rotSpeed);
-        const oldPlaneX = planeX;
-        planeX = planeX * Math.cos(-rotSpeed) - planeY * Math.sin(-rotSpeed);
-        planeY = oldPlaneX * Math.sin(-rotSpeed) + planeY * Math.cos(-rotSpeed);
-      }
-      if (keys['arrowleft'] || keys['a']) {
+
+      if (keys['d'] || keys['arrowright']) {
         const oldDirX = dirX;
         dirX = dirX * Math.cos(rotSpeed) - dirY * Math.sin(rotSpeed);
         dirY = oldDirX * Math.sin(rotSpeed) + dirY * Math.cos(rotSpeed);
@@ -171,6 +188,65 @@
         planeX = planeX * Math.cos(rotSpeed) - planeY * Math.sin(rotSpeed);
         planeY = oldPlaneX * Math.sin(rotSpeed) + planeY * Math.cos(rotSpeed);
       }
+      if (keys['a'] || keys['arrowleft']) {
+        const oldDirX = dirX;
+        dirX = dirX * Math.cos(-rotSpeed) - dirY * Math.sin(-rotSpeed);
+        dirY = oldDirX * Math.sin(-rotSpeed) + dirY * Math.cos(-rotSpeed);
+        const oldPlaneX = planeX;
+        planeX = planeX * Math.cos(-rotSpeed) - planeY * Math.sin(-rotSpeed);
+        planeY = oldPlaneX * Math.sin(-rotSpeed) + planeY * Math.cos(-rotSpeed);
+      }
+
+      // Interaction (Door or Button)
+      if (keys['e'] && timestamp - lastToggle > 300) {
+        const tx = Math.floor(posX + dirX);
+        const ty = Math.floor(posY + dirY);
+        if (map[ty]) {
+          const targetChar = map[ty][tx];
+          if (targetChar === 'D') {
+            map[ty] = map[ty].substring(0, tx) + '.' + map[ty].substring(tx + 1);
+            lastToggle = timestamp;
+          } else if (targetChar === 'B') {
+            simulateElevator();
+            lastToggle = timestamp;
+          }
+        }
+      }
+
+      // === MiniMap ===
+      const tileSize = 5;
+      const minimapWidth = mapWidth * tileSize;
+      const minimapHeight = mapHeight * tileSize;
+      const offsetX = canvas.width - minimapWidth - 10;
+      const offsetY = 10;
+
+      ctx.fillStyle = "rgba(0, 0, 0, 0.5)";
+      ctx.fillRect(offsetX - 2, offsetY - 2, minimapWidth + 4, minimapHeight + 4);
+
+      for (let y = 0; y < mapHeight; y++) {
+        for (let x = 0; x < mapWidth; x++) {
+          const cell = map[y][x];
+          if (cell === '#') ctx.fillStyle = "#888";
+          else if (cell === 'D') ctx.fillStyle = "#a52a2a";
+          else if (cell === 'B') ctx.fillStyle = "#0f0";
+          else ctx.fillStyle = "#222";
+          ctx.fillRect(offsetX + x * tileSize, offsetY + y * tileSize, tileSize, tileSize);
+        }
+      }
+
+      ctx.fillStyle = "red";
+      ctx.beginPath();
+      ctx.arc(offsetX + posX * tileSize, offsetY + posY * tileSize, 2, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.strokeStyle = "red";
+      ctx.beginPath();
+      ctx.moveTo(offsetX + posX * tileSize, offsetY + posY * tileSize);
+      ctx.lineTo(
+        offsetX + (posX + dirX * 0.7) * tileSize,
+        offsetY + (posY + dirY * 0.7) * tileSize
+      );
+      ctx.stroke();
 
       requestAnimationFrame(gameLoop);
     }
