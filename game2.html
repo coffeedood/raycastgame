@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>Raycaster with Door and Elevator Button</title>
+  <title>Raycaster with Elevator Button</title>
   <style>
     html, body {
       margin: 0; padding: 0; overflow: hidden; background: black;
@@ -44,7 +44,9 @@
         document.exitFullscreen();
     };
 
-    const map = [
+    let currentFloor = 1;
+
+    const baseMap = [
       "####################",
       "#..................#",
       "#..................#",
@@ -53,7 +55,7 @@
       "#..................#",
       "#.......######.....#",
       "#.......#....#.....#",
-      "#.......#...BD.....#", // Button 'B' next to Door 'D'
+      "#.......#...BD.....#", // button and door
       "#.......#....#.....#",
       "#.......######.....#",
       "#..................#",
@@ -62,6 +64,39 @@
       "#..................#",
       "####################"
     ];
+
+    const altMap = [
+      "####################",
+      "#.#######..........#",
+      "#.#.....#..........#",
+      "#.#.....#..........#",
+      "#.#######..........#",
+      "#..................#",
+      "#.......######.....#",
+      "#.......#....#.....#",
+      "#.......#...B#.....#", // button, sealed door
+      "#.......#....#.....#",
+      "#.......######.....#",
+      "#..................#",
+      "#..................#",
+      "#..................#",
+      "#..................#",
+      "####################"
+    ];
+
+    let map = [...baseMap];
+
+    function simulateElevator() {
+      if (currentFloor === 1) {
+        map = [...altMap];
+        currentFloor = 2;
+        alert("Elevator activated. Now on Floor 2.");
+      } else {
+        map = [...baseMap];
+        currentFloor = 1;
+        alert("Elevator activated. Now on Floor 1.");
+      }
+    }
 
     const mapWidth = map[0].length;
     const mapHeight = map.length;
@@ -74,22 +109,6 @@
     document.addEventListener("keyup", e => keys[e.key.toLowerCase()] = false);
 
     let lastToggle = 0;
-
-    function simulateElevator() {
-      // Seal off the door and remove the button
-      for (let y = 0; y < map.length; y++) {
-        map[y] = map[y].replace(/D/g, '#');
-        map[y] = map[y].replace(/B/g, '.');
-      }
-
-      // Simulate new floor layout (example change)
-      map[1] = map[1].substring(0, 1) + "#######..........." + map[1].substring(18);
-      map[2] = map[2].substring(0, 1) + "#.....#..........." + map[2].substring(18);
-      map[3] = map[3].substring(0, 1) + "#.....#..........." + map[3].substring(18);
-      map[4] = map[4].substring(0, 1) + "#######..........." + map[4].substring(18);
-
-      alert("Elevator activated. Floor changed.");
-    }
 
     function gameLoop(timestamp) {
       const w = canvas.width, h = canvas.height;
@@ -136,7 +155,7 @@
             side = 1;
           }
           hitChar = map[mapY][mapX];
-          if (hitChar === '#' || hitChar === 'D' || hitChar === 'B') hit = 1;
+          if (hitChar === '#' || hitChar === 'D') hit = 1;
         }
 
         const perpWallDist = side === 0
@@ -153,8 +172,6 @@
           color = `rgb(${shade},${shade},${shade})`;
         } else if (hitChar === 'D') {
           color = side === 1 ? `rgb(160, 90, 30)` : `rgb(200, 120, 50)`;
-        } else if (hitChar === 'B') {
-          color = side === 1 ? `rgb(50, 180, 50)` : `rgb(70, 220, 70)`;
         }
 
         ctx.strokeStyle = color;
@@ -197,19 +214,18 @@
         planeY = oldPlaneX * Math.sin(-rotSpeed) + planeY * Math.cos(-rotSpeed);
       }
 
-      // Interaction (Door or Button)
+      // Door or Button interaction
       if (keys['e'] && timestamp - lastToggle > 300) {
         const tx = Math.floor(posX + dirX);
         const ty = Math.floor(posY + dirY);
-        if (map[ty]) {
-          const targetChar = map[ty][tx];
-          if (targetChar === 'D') {
-            map[ty] = map[ty].substring(0, tx) + '.' + map[ty].substring(tx + 1);
-            lastToggle = timestamp;
-          } else if (targetChar === 'B') {
-            simulateElevator();
-            lastToggle = timestamp;
-          }
+        const cell = map[ty]?.[tx];
+
+        if (cell === 'D') {
+          map[ty] = map[ty].substring(0, tx) + '.' + map[ty].substring(tx + 1);
+          lastToggle = timestamp;
+        } else if (cell === 'B') {
+          simulateElevator();
+          lastToggle = timestamp;
         }
       }
 
@@ -228,7 +244,7 @@
           const cell = map[y][x];
           if (cell === '#') ctx.fillStyle = "#888";
           else if (cell === 'D') ctx.fillStyle = "#a52a2a";
-          else if (cell === 'B') ctx.fillStyle = "#0f0";
+          else if (cell === 'B') ctx.fillStyle = "#00ff00";
           else ctx.fillStyle = "#222";
           ctx.fillRect(offsetX + x * tileSize, offsetY + y * tileSize, tileSize, tileSize);
         }
