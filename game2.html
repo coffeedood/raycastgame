@@ -114,8 +114,28 @@
       } else {
         currentMap = floor2;
       }
-      posX = 8.5;
-      posY = 10.5; // safe walkable location
+
+      // Attempt to place the player near the elevator at a valid position
+      let newX = 8;
+      let newY = 10;
+      const directions = [
+        [0, 0], [1, 0], [-1, 0], [0, 1], [0, -1],
+        [1, 1], [-1, -1], [1, -1], [-1, 1]
+      ];
+
+      for (const [dx, dy] of directions) {
+        const testX = newX + dx;
+        const testY = newY + dy;
+        if (currentMap[testY] && currentMap[testY][testX] === '.') {
+          posX = testX + 0.5;
+          posY = testY + 0.5;
+          return;
+        }
+      }
+
+      // Fallback to a known safe location
+      posX = 2.5;
+      posY = 2.5;
     }
 
     function gameLoop(timestamp) {
