@@ -117,7 +117,8 @@
     const inventory = [];
     let health = 100;
 
-    // Door position tracking
+    let eKeyPressed = false; // <-- NEW: For debouncing 'e' key
+
     const doorPositions = {
       1: [],
       2: []
@@ -276,7 +277,9 @@
         }
       }
 
-      if (keys['e']) {
+      // Debounced interaction key
+      if (keys['e'] && !eKeyPressed) {
+        eKeyPressed = true;
         const frontX = Math.floor(posX + dirX);
         const frontY = Math.floor(posY + dirY);
         const frontTile = currentMap[frontY]?.[frontX];
@@ -298,6 +301,8 @@
           }
         }
       }
+
+      if (!keys['e']) eKeyPressed = false; // Reset debounce
 
       const tileSize = 5;
       const offsetX = canvas.width - currentMap[0].length * tileSize - 10;
