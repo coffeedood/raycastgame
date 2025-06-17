@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>Raycaster with Elevator, Doors, Items, and Health - More Visible Wall Height Variation</title>
+  <title>Raycaster with Clear Wall Height Variation</title>
   <style>
     html, body {
       margin: 0; padding: 0; overflow: hidden; background: black;
@@ -63,17 +63,14 @@
       "####################"
     ];
 
-    // Adjust heights to create very noticeable height differences
-    // Full height: 1.0
-    // Medium height: 0.5
-    // Very short height: 0.2
+    // Wall heights: 1.0 = full tall, 0.5 = medium, 0.2 = very short
     let wallHeights = floor1.map(row =>
       row.split('').map(cell => {
-        if (cell === '#') return 1.0;       // Full height wall
-        if (cell === 'B') return 0.2;       // Very short wall (20%)
-        if (cell === 'D') return 0.5;       // Medium height wall (50%)
-        if (cell === 'I') return 0;         // No wall (item or empty)
-        return 0;                          // Empty space
+        if (cell === '#') return 1.0;    // Tallest walls
+        if (cell === 'B') return 0.2;    // Very short walls
+        if (cell === 'D') return 0.5;    // Medium height walls
+        if (cell === 'I') return 0;      // No wall (item or empty)
+        return 0;
       })
     );
 
@@ -135,20 +132,24 @@
           ? (mapX - posX + (1 - stepX) / 2) / rayDirX
           : (mapY - posY + (1 - stepY) / 2) / rayDirY;
 
-        // Get wall height level from map
-        const heightLevel = wallHeights[mapY][mapX];  // e.g. 1.0, 0.5, 0.2, etc.
+        // Wall height factor
+        const heightLevel = wallHeights[mapY][mapX];
 
-        // Calculate base line height
+        // Base line height without scaling
         const baseLineHeight = Math.floor(h / perpWallDist);
 
-        // Scale line height by wall height level
+        // Scale line height by wall height factor
         const lineHeight = baseLineHeight * heightLevel;
 
-        // Calculate start and end for vertical line
-        const drawStart = Math.floor(-lineHeight / 2 + h / 2);
-        const drawEnd = Math.floor(lineHeight / 2 + h / 2);
+        // Now adjust drawStart so shorter walls appear "lower" on screen (shorter + shifted down)
+        // We'll draw from: vertical center + (fullHeightLine/2) - (shortHeightLine/2)
+        // So the bottom stays roughly the same, but top moves down for shorter walls.
+        const fullHeightLine = baseLineHeight;
+        const heightDiff = fullHeightLine - lineHeight;
+        const drawStart = Math.floor((h / 2) - (lineHeight / 2) + heightDiff);
+        const drawEnd = Math.floor(drawStart + lineHeight);
 
-        // Shade walls slightly differently depending on side
+        // Wall shading
         const colorValue = side ? 180 : 255;
         ctx.strokeStyle = `rgb(${colorValue},${colorValue},${colorValue})`;
         ctx.beginPath();
@@ -157,11 +158,10 @@
         ctx.stroke();
       }
 
-      // Movement speed and rotation speed
+      // Movement and rotation speeds
       const moveSpeed = 0.05;
       const rotSpeed = 0.03;
 
-      // Move forward
       if (keys['w'] || keys['arrowup']) {
         const forwardX = posX + dirX * moveSpeed;
         const forwardY = posY + dirY * moveSpeed;
@@ -169,7 +169,6 @@
         if (wallHeights[Math.floor(forwardY)][Math.floor(posX)] === 0) posY = forwardY;
       }
 
-      // Move backward
       if (keys['s'] || keys['arrowdown']) {
         const backX = posX - dirX * moveSpeed;
         const backY = posY - dirY * moveSpeed;
@@ -177,7 +176,6 @@
         if (wallHeights[Math.floor(backY)][Math.floor(posX)] === 0) posY = backY;
       }
 
-      // Rotate left
       if (keys['arrowleft']) {
         const oldDirX = dirX;
         dirX = dirX * Math.cos(-rotSpeed) - dirY * Math.sin(-rotSpeed);
@@ -187,7 +185,6 @@
         planeY = oldPlaneX * Math.sin(-rotSpeed) + planeY * Math.cos(-rotSpeed);
       }
 
-      // Rotate right
       if (keys['arrowright']) {
         const oldDirX = dirX;
         dirX = dirX * Math.cos(rotSpeed) - dirY * Math.sin(rotSpeed);
