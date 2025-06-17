@@ -1,258 +1,268 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Raycaster with Small Items</title>
-<style>
-  body, html {
-    margin: 0; padding: 0; overflow: hidden; background: black;
-    height: 100%; width: 100%;
-  }
-  canvas {
-    display: block;
-    background: #111;
-  }
-</style>
+  <title>Raycaster with 3D Floor Items</title>
+  <style>
+    html, body {
+      margin: 0; padding: 0; overflow: hidden; background: black;
+      height: 100%; width: 100%;
+    }
+    canvas { display: block; margin: auto; background: #111; }
+  </style>
 </head>
 <body>
 <canvas id="game"></canvas>
 <script>
-(() => {
-  const canvas = document.getElementById("game");
-  const ctx = canvas.getContext("2d");
+const canvas = document.getElementById("game");
+const ctx = canvas.getContext("2d");
 
-  // Resize canvas to fill window
-  function resize() {
-    canvas.width = window.innerWidth;
-    canvas.height = window.innerHeight;
+const w = canvas.width = window.innerWidth;
+const h = canvas.height = window.innerHeight;
+
+// Map is 24x24 but with smaller tiles (map doubled in size)
+const MAP_SIZE = 24;
+const TILE_SIZE = 0.5; // Each tile is half size in world units (walls are bigger on map scale)
+const WALL_HEIGHT = 1.0;
+
+const map = [
+  [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
+  [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+  [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+  [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+  [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+  [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+  [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+  [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+  [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+  [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+  [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+  [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+  [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+  [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+  [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+  [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+  [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+  [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+  [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+  [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+  [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+  [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+  [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+  [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1]
+];
+
+// Doors map: 2 means door
+// Example: put some doors at these positions
+map[10][10] = 2;
+map[10][11] = 2; // double wide door
+
+map[14][15] = 2;
+map[14][16] = 2; // another double door
+
+// Player pos - somewhere inside the map
+let posX = 12.5;
+let posY = 12.5;
+let dirX = -1;
+let dirY = 0;
+let planeX = 0;
+let planeY = 0.66;
+
+// Movement speed
+const moveSpeed = 0.05;
+const rotSpeed = 0.03;
+
+// Items on the map, at normal scale coordinates (not doubled)
+const items = [
+  { x: 13.5, y: 10.5, name: "Gold" },
+  { x: 15.2, y: 13.8, name: "Potion" },
+  { x: 11.3, y: 14.4, name: "Key" }
+];
+
+// Key controls
+const keys = {};
+window.addEventListener("keydown", e => { keys[e.key] = true; });
+window.addEventListener("keyup", e => { keys[e.key] = false; });
+
+function update() {
+  if(keys["w"]) {
+    const nextX = posX + dirX * moveSpeed;
+    const nextY = posY + dirY * moveSpeed;
+    if(map[Math.floor(nextX)][Math.floor(posY)] === 0) posX = nextX;
+    if(map[Math.floor(posX)][Math.floor(nextY)] === 0) posY = nextY;
   }
-  resize();
-  window.addEventListener("resize", resize);
-
-  // Map legend:
-  // '#' - wall
-  // 'D' - door (treated as wall here, but could be special)
-  // '.' - floor
-  const map = [
-    "################",
-    "#..............#",
-    "#....D.........#",
-    "#..............#",
-    "#..#######.....#",
-    "#..............#",
-    "#.....I........#",
-    "################"
-  ];
-
-  const mapWidth = map[0].length;
-  const mapHeight = map.length;
-
-  // Player start position (x,y floats)
-  let posX = 3.5;
-  let posY = 3.5;
-
-  // Player direction vector
-  let dirX = 1;
-  let dirY = 0;
-
-  // Camera plane (perpendicular to dir vector)
-  let planeX = 0;
-  let planeY = 0.66;
-
-  // Movement keys state
-  const keys = {};
-  window.addEventListener("keydown", e => { keys[e.key.toLowerCase()] = true; });
-  window.addEventListener("keyup", e => { keys[e.key.toLowerCase()] = false; });
-
-  // Items - separate from map
-  // Each item has precise x,y coordinates (floats)
-  const items = [
-    { x: 6.3, y: 6.7, name: "Gold Coin" },
-    { x: 5.8, y: 2.4, name: "Health Potion" },
-  ];
-
-  function isWall(x, y) {
-    if (x < 0 || x >= mapWidth || y < 0 || y >= mapHeight) return true;
-    return map[Math.floor(y)][Math.floor(x)] === '#' || map[Math.floor(y)][Math.floor(x)] === 'D';
+  if(keys["s"]) {
+    const nextX = posX - dirX * moveSpeed;
+    const nextY = posY - dirY * moveSpeed;
+    if(map[Math.floor(nextX)][Math.floor(posY)] === 0) posX = nextX;
+    if(map[Math.floor(posX)][Math.floor(nextY)] === 0) posY = nextY;
   }
+  if(keys["a"]) {
+    // rotate left
+    const oldDirX = dirX;
+    dirX = dirX * Math.cos(rotSpeed) - dirY * Math.sin(rotSpeed);
+    dirY = oldDirX * Math.sin(rotSpeed) + dirY * Math.cos(rotSpeed);
+    const oldPlaneX = planeX;
+    planeX = planeX * Math.cos(rotSpeed) - planeY * Math.sin(rotSpeed);
+    planeY = oldPlaneX * Math.sin(rotSpeed) + planeY * Math.cos(rotSpeed);
+  }
+  if(keys["d"]) {
+    // rotate right
+    const oldDirX = dirX;
+    dirX = dirX * Math.cos(-rotSpeed) - dirY * Math.sin(-rotSpeed);
+    dirY = oldDirX * Math.sin(-rotSpeed) + dirY * Math.cos(-rotSpeed);
+    const oldPlaneX = planeX;
+    planeX = planeX * Math.cos(-rotSpeed) - planeY * Math.sin(-rotSpeed);
+    planeY = oldPlaneX * Math.sin(-rotSpeed) + planeY * Math.cos(-rotSpeed);
+  }
+}
 
-  function gameLoop() {
-    const w = canvas.width;
-    const h = canvas.height;
+// Raycasting and drawing
+function render() {
+  ctx.clearRect(0, 0, w, h);
 
-    // Clear screen
-    ctx.fillStyle = "black";
-    ctx.fillRect(0, 0, w, h);
+  // Draw ceiling
+  ctx.fillStyle = "#333";
+  ctx.fillRect(0, 0, w, h / 2);
 
-    // Raycasting to draw walls column by column
-    for(let x = 0; x < w; x++) {
-      // Camera x coordinate in camera space
-      const cameraX = 2 * x / w - 1;
-      const rayDirX = dirX + planeX * cameraX;
-      const rayDirY = dirY + planeY * cameraX;
+  // Draw floor
+  ctx.fillStyle = "#777";
+  ctx.fillRect(0, h / 2, w, h / 2);
 
-      // Which box of the map we're in
-      let mapX = Math.floor(posX);
-      let mapY = Math.floor(posY);
+  // Raycasting for each vertical stripe (column)
+  for(let x = 0; x < w; x++) {
+    // Calculate ray position and direction
+    const cameraX = 2 * x / w - 1; // camera space x coordinate in [-1, 1]
+    const rayDirX = dirX + planeX * cameraX;
+    const rayDirY = dirY + planeY * cameraX;
 
-      // Length of ray from one x or y side to next x or y side
-      const deltaDistX = Math.abs(1 / rayDirX);
-      const deltaDistY = Math.abs(1 / rayDirY);
+    // Map coordinates of player
+    let mapX = Math.floor(posX);
+    let mapY = Math.floor(posY);
 
-      let stepX, stepY;
-      let sideDistX, sideDistY;
+    // Length of ray from current position to next x or y side
+    let sideDistX;
+    let sideDistY;
 
-      // Calculate step and initial sideDist
-      if(rayDirX < 0) {
-        stepX = -1;
-        sideDistX = (posX - mapX) * deltaDistX;
+    // Length of ray from one x or y side to next x or y side
+    const deltaDistX = Math.abs(1 / rayDirX);
+    const deltaDistY = Math.abs(1 / rayDirY);
+
+    let perpWallDist;
+
+    // Direction to step in x or y (+1 or -1)
+    let stepX;
+    let stepY;
+
+    let hit = 0; // was there a wall hit?
+    let side; // was a NS or EW wall hit?
+
+    // Calculate step and initial sideDist
+    if(rayDirX < 0) {
+      stepX = -1;
+      sideDistX = (posX - mapX) * deltaDistX;
+    } else {
+      stepX = 1;
+      sideDistX = (mapX + 1.0 - posX) * deltaDistX;
+    }
+    if(rayDirY < 0) {
+      stepY = -1;
+      sideDistY = (posY - mapY) * deltaDistY;
+    } else {
+      stepY = 1;
+      sideDistY = (mapY + 1.0 - posY) * deltaDistY;
+    }
+
+    // Perform DDA
+    while(hit === 0) {
+      // Jump to next map square, either in x-direction, or y-direction
+      if(sideDistX < sideDistY) {
+        sideDistX += deltaDistX;
+        mapX += stepX;
+        side = 0;
       } else {
-        stepX = 1;
-        sideDistX = (mapX + 1.0 - posX) * deltaDistX;
+        sideDistY += deltaDistY;
+        mapY += stepY;
+        side = 1;
       }
-      if(rayDirY < 0) {
-        stepY = -1;
-        sideDistY = (posY - mapY) * deltaDistY;
-      } else {
-        stepY = 1;
-        sideDistY = (mapY + 1.0 - posY) * deltaDistY;
-      }
-
-      let hit = false;
-      let side; // 0 for x side, 1 for y side
-
-      // Perform DDA (Digital Differential Analysis)
-      while(!hit) {
-        if(sideDistX < sideDistY) {
-          sideDistX += deltaDistX;
-          mapX += stepX;
-          side = 0;
-        } else {
-          sideDistY += deltaDistY;
-          mapY += stepY;
-          side = 1;
-        }
-        // Check if ray has hit a wall or door
-        if(isWall(mapX, mapY)) hit = true;
-      }
-
-      // Calculate distance to the point of impact
-      let perpWallDist;
-      if(side === 0) {
-        perpWallDist = (mapX - posX + (1 - stepX) / 2) / rayDirX;
-      } else {
-        perpWallDist = (mapY - posY + (1 - stepY) / 2) / rayDirY;
-      }
-
-      // Calculate height of line to draw on screen
-      const lineHeight = Math.floor(h / perpWallDist);
-
-      // Calculate lowest and highest pixel to fill in current stripe
-      let drawStart = -lineHeight / 2 + h / 2;
-      let drawEnd = lineHeight / 2 + h / 2;
-
-      // Choose wall color
-      let color;
-      const cellChar = map[mapY][mapX];
-      if(cellChar === '#') {
-        color = side === 1 ? "rgb(120,120,120)" : "rgb(180,180,180)";
-      } else if(cellChar === 'D') {
-        color = side === 1 ? "rgb(139,69,19)" : "rgb(160,82,45)"; // door brown
-      } else {
-        color = "white";
-      }
-
-      ctx.strokeStyle = color;
-      ctx.beginPath();
-      ctx.moveTo(x, drawStart);
-      ctx.lineTo(x, drawEnd);
-      ctx.stroke();
+      // Check if ray has hit a wall or door
+      if(map[mapX] && map[mapX][mapY] > 0) hit = 1;
     }
 
-    // Draw items as small squares (or circles) projected in the scene
+    // Calculate distance projected on camera direction (correct for fish-eye)
+    if(side === 0) perpWallDist = (mapX - posX + (1 - stepX) / 2) / rayDirX;
+    else perpWallDist = (mapY - posY + (1 - stepY) / 2) / rayDirY;
 
-    // We do a simple "sprite" projection here:
-    // Calculate relative position of each item to player
-    items.forEach(item => {
-      // Translate item position to relative to camera
-      const spriteX = item.x - posX;
-      const spriteY = item.y - posY;
+    // Calculate height of line to draw
+    let lineHeight = Math.floor(h / perpWallDist);
 
-      // Inverse camera matrix
-      const invDet = 1 / (planeX * dirY - dirX * planeY);
+    // Determine wall or door type and adjust appearance
+    const tileType = map[mapX][mapY];
 
-      const transformX = invDet * (dirY * spriteX - dirX * spriteY);
-      const transformY = invDet * (-planeY * spriteX + planeX * spriteY);
+    // Draw the vertical line for wall or door
+    if(tileType === 1) {
+      // Wall - solid gray
+      ctx.fillStyle = side === 1 ? "#888" : "#BBB";
+      ctx.fillRect(x, (h - lineHeight) / 2, 1, lineHeight);
+    } else if(tileType === 2) {
+      // Door - bigger and brownish
+      // Let's make door twice as wide by drawing two adjacent vertical stripes
+      ctx.fillStyle = side === 1 ? "#553311" : "#774422";
+      ctx.fillRect(x, (h - lineHeight) / 2, 1, lineHeight);
 
-      if(transformY > 0) { // Only draw if in front of camera
-
-        const spriteScreenX = Math.floor((w / 2) * (1 + transformX / transformY));
-
-        // Calculate height of the sprite on screen (smaller for items)
-        const spriteHeight = Math.floor(h / transformY / 4); // Dividing by 4 to make items smaller
-        const drawStartY = Math.floor(h / 2 - spriteHeight / 2);
-        const drawEndY = drawStartY + spriteHeight;
-
-        // Width same as height for square
-        const spriteWidth = spriteHeight;
-        const drawStartX = spriteScreenX - spriteWidth / 2;
-        const drawEndX = drawStartX + spriteWidth;
-
-        // Draw a yellow square as the item
-        ctx.fillStyle = "yellow";
-        ctx.fillRect(drawStartX, drawStartY, spriteWidth, spriteHeight);
-
-        // Optional: draw item name above the item
-        ctx.fillStyle = "white";
-        ctx.font = "12px monospace";
-        ctx.textAlign = "center";
-        ctx.fillText(item.name, spriteScreenX, drawStartY - 5);
+      // Also draw the next stripe for door width (if in bounds)
+      if (x + 1 < w) {
+        ctx.fillRect(x + 1, (h - lineHeight) / 2, 1, lineHeight);
       }
-    });
-
-    // Movement and rotation controls
-    const moveSpeed = 0.05;
-    const rotSpeed = 0.03;
-
-    // Move forward
-    if(keys['w']) {
-      const newX = posX + dirX * moveSpeed;
-      const newY = posY + dirY * moveSpeed;
-      if(!isWall(newX, posY)) posX = newX;
-      if(!isWall(posX, newY)) posY = newY;
     }
-    // Move backward
-    if(keys['s']) {
-      const newX = posX - dirX * moveSpeed;
-      const newY = posY - dirY * moveSpeed;
-      if(!isWall(newX, posY)) posX = newX;
-      if(!isWall(posX, newY)) posY = newY;
-    }
-    // Rotate left
-    if(keys['a']) {
-      const oldDirX = dirX;
-      dirX = dirX * Math.cos(rotSpeed) - dirY * Math.sin(rotSpeed);
-      dirY = oldDirX * Math.sin(rotSpeed) + dirY * Math.cos(rotSpeed);
-      const oldPlaneX = planeX;
-      planeX = planeX * Math.cos(rotSpeed) - planeY * Math.sin(rotSpeed);
-      planeY = oldPlaneX * Math.sin(rotSpeed) + planeY * Math.cos(rotSpeed);
-    }
-    // Rotate right
-    if(keys['d']) {
-      const oldDirX = dirX;
-      dirX = dirX * Math.cos(-rotSpeed) - dirY * Math.sin(-rotSpeed);
-      dirY = oldDirX * Math.sin(-rotSpeed) + dirY * Math.cos(-rotSpeed);
-      const oldPlaneX = planeX;
-      planeX = planeX * Math.cos(-rotSpeed) - planeY * Math.sin(-rotSpeed);
-      planeY = oldPlaneX * Math.sin(-rotSpeed) + planeY * Math.cos(-rotSpeed);
-    }
-
-    requestAnimationFrame(gameLoop);
   }
 
-  gameLoop();
-})();
+  // Draw items as small 3D floor sprites on the ground
+  items.forEach(item => {
+    const spriteX = item.x - posX;
+    const spriteY = item.y - posY;
+
+    const invDet = 1 / (planeX * dirY - dirX * planeY);
+
+    const transformX = invDet * (dirY * spriteX - dirX * spriteY);
+    const transformY = invDet * (-planeY * spriteX + planeX * spriteY);
+
+    if(transformY > 0) {
+      const spriteScreenX = Math.floor((w / 2) * (1 + transformX / transformY));
+
+      // base size depending on distance
+      const baseSize = h / transformY;
+
+      // Items smaller and on ground (floor sprites)
+      const spriteHeight = baseSize / 8; // very small height for floor item
+      const spriteWidth = spriteHeight;
+
+      // Draw near bottom of screen to simulate ground
+      const drawStartY = h - spriteHeight - 10; // 10px above bottom edge
+      const drawEndY = drawStartY + spriteHeight;
+
+      const drawStartX = spriteScreenX - spriteWidth / 2;
+      const drawEndX = drawStartX + spriteWidth;
+
+      // Draw the item rectangle (yellow for visibility)
+      ctx.fillStyle = "yellow";
+      ctx.fillRect(drawStartX, drawStartY, spriteWidth, spriteHeight);
+
+      // Draw item name above item (small font)
+      ctx.fillStyle = "white";
+      ctx.font = "10px monospace";
+      ctx.textAlign = "center";
+      ctx.fillText(item.name, spriteScreenX, drawStartY - 5);
+    }
+  });
+}
+
+function gameLoop() {
+  update();
+  render();
+  requestAnimationFrame(gameLoop);
+}
+
+gameLoop();
 </script>
 </body>
 </html>
