@@ -48,7 +48,7 @@
       "####################",
       "#..................#",
       "#..................#",
-      "#.......I..........#",
+      "#.......i..........#",
       "#.......D..........#",
       "#..................#",
       "#.......######.....#",
@@ -70,7 +70,7 @@
       "#..................#",
       "#.......D..........#",
       "#..................#",
-      "#.......######..I..#",
+      "#.......######..i..#",
       "#.......#....#.....#",
       "#.......#....#.....#",
       "#......####..#.....#",
@@ -206,7 +206,7 @@
             side = 1;
           }
           hitChar = currentMap[mapY][mapX];
-          if (hitChar === '#' || hitChar === 'B' || hitChar === 'D' || hitChar === 'I') hit = 1;
+          if (hitChar === '#' || hitChar === 'B' || hitChar === 'D' || hitChar === 'i') hit = 1;
         }
 
         const perpWallDist = side === 0
@@ -217,12 +217,11 @@
         let drawStart = -lineHeight / 2 + h / 2;
         let drawEnd = lineHeight / 2 + h / 2;
 
-        // Make items very small visually
-        if (hitChar === 'I') {
-          const itemHeight = Math.max(5, h / (perpWallDist * 5)); // shrink item height
-          const center = h / 2;
-          drawStart = center - itemHeight / 2;
-          drawEnd = center + itemHeight / 2;
+        // Shrink item rendering if tiny item
+        if (hitChar === 'i') {
+          const tinyHeight = 3;
+          drawStart = h / 2 - tinyHeight / 2;
+          drawEnd = h / 2 + tinyHeight / 2;
         }
 
         let color;
@@ -233,8 +232,8 @@
           color = side === 1 ? `rgb(100, 180, 255)` : `rgb(130, 210, 255)`;
         } else if (hitChar === 'D') {
           color = side === 1 ? `rgb(139,69,19)` : `rgb(160,82,45)`;
-        } else if (hitChar === 'I') {
-          color = side === 1 ? `rgb(255,215,0)` : `rgb(255,223,0)`;
+        } else if (hitChar === 'i') {
+          color = `rgb(255, 255, 0)`; // bright yellow
         }
 
         ctx.strokeStyle = color;
@@ -292,8 +291,8 @@
           selectedFloor = currentFloor === 1 ? 2 : 1;
         } else if (frontTile === 'D') {
           mapArray[frontY] = replaceAt(mapArray[frontY], frontX, '.');
-        } else if (frontTile === 'I') {
-          inventory.push("Item");
+        } else if (frontTile === 'i') {
+          inventory.push("Tiny Item");
           mapArray[frontY] = replaceAt(mapArray[frontY], frontX, '.');
         } else if (frontTile === '.') {
           const wasDoor = doorsOnThisFloor.some(p => p.x === frontX && p.y === frontY);
@@ -318,7 +317,7 @@
           if (cell === '#') ctx.fillStyle = "#888";
           else if (cell === 'B') ctx.fillStyle = "#0af";
           else if (cell === 'D') ctx.fillStyle = "#964B00";
-          else if (cell === 'I') ctx.fillStyle = "#ff0";
+          else if (cell === 'i') ctx.fillStyle = "#ff0";
           else ctx.fillStyle = "#222";
           ctx.fillRect(offsetX + x * tileSize, offsetY + y * tileSize, tileSize, tileSize);
         }
