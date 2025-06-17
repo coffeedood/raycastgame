@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>Raycaster with Clear Wall Height Variation</title>
+  <title>Raycaster with Transparent Shorter Walls</title>
   <style>
     html, body {
       margin: 0; padding: 0; overflow: hidden; background: black;
@@ -64,6 +64,7 @@
     ];
 
     // Wall heights: 1.0 = full tall, 0.5 = medium, 0.2 = very short
+    // Also assign colors for short walls as grey.
     let wallHeights = floor1.map(row =>
       row.split('').map(cell => {
         if (cell === '#') return 1.0;    // Tallest walls
@@ -141,21 +142,51 @@
         // Scale line height by wall height factor
         const lineHeight = baseLineHeight * heightLevel;
 
-        // Now adjust drawStart so shorter walls appear "lower" on screen (shorter + shifted down)
-        // We'll draw from: vertical center + (fullHeightLine/2) - (shortHeightLine/2)
-        // So the bottom stays roughly the same, but top moves down for shorter walls.
+        // Calculate full height line start and end (for full tall wall)
         const fullHeightLine = baseLineHeight;
         const heightDiff = fullHeightLine - lineHeight;
+
+        // Position so that bottom stays roughly the same
         const drawStart = Math.floor((h / 2) - (lineHeight / 2) + heightDiff);
         const drawEnd = Math.floor(drawStart + lineHeight);
 
-        // Wall shading
-        const colorValue = side ? 180 : 255;
-        ctx.strokeStyle = `rgb(${colorValue},${colorValue},${colorValue})`;
-        ctx.beginPath();
-        ctx.moveTo(x, drawStart);
-        ctx.lineTo(x, drawEnd);
-        ctx.stroke();
+        // Choose color and transparency:
+        // For short walls (height < 1), draw full height line in grey,
+        // then clear (transparent) the area above the short visible part.
+
+        if (heightLevel < 1) {
+          // Draw full height wall line in grey (darker if side)
+          const greyValue = side ? 100 : 150;
+          ctx.strokeStyle = `rgba(${greyValue},${greyValue},${greyValue},1)`;
+          ctx.beginPath();
+          ctx.moveTo(x, (h/2) - (fullHeightLine/2));
+          ctx.lineTo(x, (h/2) + (fullHeightLine/2));
+          ctx.stroke();
+
+          // Draw transparent rectangle above the visible short wall part to simulate "cut off"
+          ctx.clearRect(
+            x,                      // x position
+            (h/2) - (fullHeightLine/2), // top of full wall line
+            1,                      // width 1 px column
+            heightDiff              // height to clear above short wall
+          );
+
+          // Draw visible short wall part (solid grey)
+          ctx.strokeStyle = `rgba(${greyValue},${greyValue},${greyValue},1)`;
+          ctx.beginPath();
+          ctx.moveTo(x, drawStart);
+          ctx.lineTo(x, drawEnd);
+          ctx.stroke();
+
+        } else {
+          // Full height walls: white or lighter color, no transparency
+          const colorValue = side ? 180 : 255;
+          ctx.strokeStyle = `rgb(${colorValue},${colorValue},${colorValue})`;
+          ctx.beginPath();
+          ctx.moveTo(x, drawStart);
+          ctx.lineTo(x, drawEnd);
+          ctx.stroke();
+        }
       }
 
       // Movement and rotation speeds
