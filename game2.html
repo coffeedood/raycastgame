@@ -1,160 +1,77 @@
-<!DOCTYPE html>
-<html>
-<head>
-  <title>Raycaster with Short Items</title>
-  <style>
-    html, body {
-      margin: 0;
-      padding: 0;
-      overflow: hidden;
-      background: black;
-      height: 100%;
-      width: 100%;
-    }
-    canvas {
-      display: block;
-    }
-  </style>
-</head>
-<body>
-<canvas id="game"></canvas>
-<script>
+// This JavaScript code adds variable-height wall support to a raycasting engine.
+// It assumes walls are stored in a grid, and each cell contains an object like { type: 'wall', height: 1.0 }
+
+const canvas = document.getElementById("gameCanvas");
+const ctx = canvas.getContext("2d");
+
+canvas.width = 800;
+canvas.height = 600;
+
 const map = [
-  "111111111111",
-  "1..........1",
-  "1.I........1",
-  "1..........1",
-  "1....D.....1",
-  "1..........1",
-  "1..........1",
-  "111111111111"
+  [ {type: 'wall', height: 1}, {type: 'wall', height: 1.5}, {type: 'wall', height: 0.5}, {type: 'empty'} ],
+  [ {type: 'wall', height: 1}, {type: 'empty'}, {type: 'wall', height: 1}, {type: 'empty'} ],
+  [ {type: 'wall', height: 1}, {type: 'empty'}, {type: 'wall', height: 1}, {type: 'empty'} ],
+  [ {type: 'wall', height: 1}, {type: 'wall', height: 1}, {type: 'wall', height: 1}, {type: 'wall', height: 1} ]
 ];
 
-const canvas = document.getElementById("game");
-const ctx = canvas.getContext("2d");
-canvas.width = window.innerWidth;
-canvas.height = window.innerHeight;
+const mapWidth = map[0].length;
+const mapHeight = map.length;
 
-const w = canvas.width;
-const h = canvas.height;
+const player = {
+  x: 1.5,
+  y: 1.5,
+  dir: Math.PI / 4,
+  fov: Math.PI / 3
+};
 
-let posX = 4.5, posY = 4.5;
-let dirX = -1, dirY = 0;
-let planeX = 0, planeY = 0.66;
+function castRay(angle) {
+  const dx = Math.cos(angle);
+  const dy = Math.sin(angle);
 
-const keys = {};
-document.addEventListener('keydown', e => keys[e.key] = true);
-document.addEventListener('keyup', e => keys[e.key] = false);
+  let distance = 0;
+  while (distance < 20) {
+    const x = player.x + dx * distance;
+    const y = player.y + dy * distance;
+
+    const mapX = Math.floor(x);
+    const mapY = Math.floor(y);
+
+    if (mapX >= 0 && mapX < mapWidth && mapY >= 0 && mapY < mapHeight) {
+      const cell = map[mapY][mapX];
+      if (cell && cell.type === 'wall') {
+        return { distance, height: cell.height };
+      }
+    } else {
+      break;
+    }
+    distance += 0.01;
+  }
+  return null;
+}
+
+function render() {
+  ctx.fillStyle = 'skyblue';
+  ctx.fillRect(0, 0, canvas.width, canvas.height / 2);
+  ctx.fillStyle = 'gray';
+  ctx.fillRect(0, canvas.height / 2, canvas.width, canvas.height / 2);
+
+  const numRays = canvas.width;
+  for (let i = 0; i < numRays; i++) {
+    const rayAngle = player.dir - player.fov / 2 + player.fov * (i / numRays);
+    const ray = castRay(rayAngle);
+
+    if (ray) {
+      const correctedDist = ray.distance * Math.cos(rayAngle - player.dir);
+      const wallHeight = (canvas.height / correctedDist) * ray.height;
+      ctx.fillStyle = 'brown';
+      ctx.fillRect(i, (canvas.height - wallHeight) / 2, 1, wallHeight);
+    }
+  }
+}
 
 function gameLoop() {
-  update();
-  draw();
+  render();
   requestAnimationFrame(gameLoop);
 }
 
-function update() {
-  const moveSpeed = 0.05;
-  const rotSpeed = 0.03;
-  if (keys['ArrowUp']) {
-    if (map[Math.floor(posY)][Math.floor(posX + dirX * moveSpeed)] === '.') posX += dirX * moveSpeed;
-    if (map[Math.floor(posY + dirY * moveSpeed)][Math.floor(posX)] === '.') posY += dirY * moveSpeed;
-  }
-  if (keys['ArrowDown']) {
-    if (map[Math.floor(posY)][Math.floor(posX - dirX * moveSpeed)] === '.') posX -= dirX * moveSpeed;
-    if (map[Math.floor(posY - dirY * moveSpeed)][Math.floor(posX)] === '.') posY -= dirY * moveSpeed;
-  }
-  if (keys['ArrowRight']) {
-    const oldDirX = dirX;
-    dirX = dirX * Math.cos(-rotSpeed) - dirY * Math.sin(-rotSpeed);
-    dirY = oldDirX * Math.sin(-rotSpeed) + dirY * Math.cos(-rotSpeed);
-    const oldPlaneX = planeX;
-    planeX = planeX * Math.cos(-rotSpeed) - planeY * Math.sin(-rotSpeed);
-    planeY = oldPlaneX * Math.sin(-rotSpeed) + planeY * Math.cos(-rotSpeed);
-  }
-  if (keys['ArrowLeft']) {
-    const oldDirX = dirX;
-    dirX = dirX * Math.cos(rotSpeed) - dirY * Math.sin(rotSpeed);
-    dirY = oldDirX * Math.sin(rotSpeed) + dirY * Math.cos(rotSpeed);
-    const oldPlaneX = planeX;
-    planeX = planeX * Math.cos(rotSpeed) - planeY * Math.sin(rotSpeed);
-    planeY = oldPlaneX * Math.sin(rotSpeed) + planeY * Math.cos(rotSpeed);
-  }
-}
-
-function draw() {
-  ctx.fillStyle = 'gray';
-  ctx.fillRect(0, 0, w, h);
-
-  for (let x = 0; x < w; x++) {
-    const cameraX = 2 * x / w - 1;
-    const rayDirX = dirX + planeX * cameraX;
-    const rayDirY = dirY + planeY * cameraX;
-
-    let mapX = Math.floor(posX);
-    let mapY = Math.floor(posY);
-
-    const deltaDistX = Math.abs(1 / rayDirX);
-    const deltaDistY = Math.abs(1 / rayDirY);
-
-    let stepX, stepY;
-    let sideDistX, sideDistY;
-
-    if (rayDirX < 0) {
-      stepX = -1;
-      sideDistX = (posX - mapX) * deltaDistX;
-    } else {
-      stepX = 1;
-      sideDistX = (mapX + 1.0 - posX) * deltaDistX;
-    }
-    if (rayDirY < 0) {
-      stepY = -1;
-      sideDistY = (posY - mapY) * deltaDistY;
-    } else {
-      stepY = 1;
-      sideDistY = (mapY + 1.0 - posY) * deltaDistY;
-    }
-
-    let hit = false;
-    let side;
-    let hitChar;
-
-    while (!hit) {
-      if (sideDistX < sideDistY) {
-        sideDistX += deltaDistX;
-        mapX += stepX;
-        side = 0;
-      } else {
-        sideDistY += deltaDistY;
-        mapY += stepY;
-        side = 1;
-      }
-      hitChar = map[mapY][mapX];
-      if (hitChar !== '.') hit = true;
-    }
-
-    const perpWallDist = side === 0 ? (mapX - posX + (1 - stepX) / 2) / rayDirX
-                                    : (mapY - posY + (1 - stepY) / 2) / rayDirY;
-
-    let lineHeight = Math.floor(h / perpWallDist);
-    let drawStart = -lineHeight / 2 + h / 2;
-    let drawEnd = lineHeight / 2 + h / 2;
-
-    if (hitChar === 'I') {
-      lineHeight = Math.floor(h / perpWallDist * 0.15);
-      const itemOffset = h * 0.35;
-      drawStart = h / 2 + itemOffset;
-      drawEnd = drawStart + lineHeight;
-    }
-
-    ctx.strokeStyle = hitChar === '1' ? 'white' : hitChar === 'D' ? 'brown' : 'gold';
-    ctx.beginPath();
-    ctx.moveTo(x, drawStart);
-    ctx.lineTo(x, drawEnd);
-    ctx.stroke();
-  }
-}
-
 gameLoop();
-</script>
-</body>
-</html>
