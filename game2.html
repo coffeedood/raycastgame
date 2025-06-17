@@ -2,191 +2,143 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8" />
-<title>Raycaster with Variable Wall Heights and Transparency</title>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Raycasting - Grey Walls, Transparent Above</title>
 <style>
-  body { margin:0; background: black; overflow: hidden; }
-  canvas { display: block; margin: 0 auto; background: #222; }
+  body { margin: 0; overflow: hidden; background: black; }
+  canvas { display: block; margin: 0 auto; background: transparent; }
 </style>
 </head>
 <body>
-<canvas id="game"></canvas>
-
+<canvas id="canvas"></canvas>
 <script>
-// Canvas setup
-const canvas = document.getElementById('game');
-const ctx = canvas.getContext('2d');
-const SCREEN_WIDTH = window.innerWidth;
-const SCREEN_HEIGHT = window.innerHeight;
-canvas.width = SCREEN_WIDTH;
-canvas.height = SCREEN_HEIGHT;
+(() => {
+  const canvas = document.getElementById("canvas");
+  const ctx = canvas.getContext("2d");
 
-// Constants
-const FOV = Math.PI / 3; // 60 degrees field of view
-const NUM_RAYS = SCREEN_WIDTH;
-const MAX_DEPTH = 20;
-const MAP_SIZE = 10;
-const TILE_SIZE = 1;
+  // Set canvas size
+  const WIDTH = canvas.width = 800;
+  const HEIGHT = canvas.height = 400;
 
-// Map with variable heights (0 = empty, >0 = wall height in units)
-const map = [
-  [1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
-  [1, 0, 0, 0, 1.5, 0, 0, 0, 0, 1],
-  [1, 0, 0, 0, 1.5, 0, 0, 0, 0, 1],
-  [1, 0, 0, 0, 1.5, 0, 0, 0, 0, 1],
-  [1, 0, 0, 0, 1.5, 0, 0, 0, 0, 1],
-  [1, 0, 0, 0, 1, 0, 0, 1.2, 0, 1],
-  [1, 0, 0, 0, 0, 0, 0, 1.2, 0, 1],
-  [1, 0, 0, 0, 0, 0, 0, 1.2, 0, 1],
-  [1, 0, 0, 0, 0, 0, 0, 1.2, 0, 1],
-  [1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
-];
+  // Player and map setup
+  const FOV = Math.PI / 3;  // 60 degrees field of view
+  const NUM_RAYS = WIDTH;
+  const MAX_DEPTH = 20;
 
-// Player state
-let player = {
-  x: 3.5,
-  y: 3.5,
-  angle: 0,
-  moveSpeed: 3, // units per second
-  rotSpeed: Math.PI, // radians per second
-};
+  const mapSize = 8;
+  const map = [
+    [1, 1, 1, 1, 1, 1, 1, 1],
+    [1, 0, 0, 0, 0, 0, 0, 1],
+    [1, 0, 0.6, 0, 0, 0, 0, 1], // short wall with height 0.6
+    [1, 0, 0, 1, 1, 0, 0, 1],
+    [1, 0, 0, 1.2, 1.2, 0, 0, 1], // taller walls 1.2 height
+    [1, 0, 0, 0, 0, 0, 0, 1],
+    [1, 0, 0, 0, 0, 0, 0, 1],
+    [1, 1, 1, 1, 1, 1, 1, 1]
+  ];
 
-// Handle key input
-const keys = {};
-window.addEventListener('keydown', e => keys[e.key] = true);
-window.addEventListener('keyup', e => keys[e.key] = false);
+  const player = {
+    x: 3.5,
+    y: 3.5,
+    angle: 0,
+    speed: 0.05,
+  };
 
-// Utility functions
-function normalizeAngle(angle) {
-  angle = angle % (2 * Math.PI);
-  if (angle < 0) angle += 2 * Math.PI;
-  return angle;
-}
+  // Cast a single ray from player in angle `rayAngle`
+  // Return object with distance and wall height at hit
+  function castRay(rayAngle) {
+    let distance = 0;
+    const step = 0.01;
 
-// Cast a ray, returns info about the hit
-function castRay(rayAngle) {
-  rayAngle = normalizeAngle(rayAngle);
-  let sin = Math.sin(rayAngle);
-  let cos = Math.cos(rayAngle);
+    while (distance < MAX_DEPTH) {
+      const testX = player.x + Math.cos(rayAngle) * distance;
+      const testY = player.y + Math.sin(rayAngle) * distance;
 
-  let distance = 0;
-  let hit = false;
-  let wallHeight = 0;
-  let hitX = 0;
-  let hitY = 0;
-  let stepSize = 0.02;
+      if (testX < 0 || testX >= mapSize || testY < 0 || testY >= mapSize) {
+        return { distance: MAX_DEPTH, height: 0 };
+      }
 
-  while (!hit && distance < MAX_DEPTH) {
-    distance += stepSize;
-    let testX = player.x + cos * distance;
-    let testY = player.y + sin * distance;
+      const mapX = Math.floor(testX);
+      const mapY = Math.floor(testY);
 
-    // Check map bounds
-    if (testX < 0 || testX >= MAP_SIZE || testY < 0 || testY >= MAP_SIZE) {
-      hit = true;
-      distance = MAX_DEPTH;
-      break;
+      const wallHeight = map[mapY][mapX];
+      if (wallHeight > 0) {
+        return { distance, height: wallHeight };
+      }
+
+      distance += step;
     }
 
-    let mapX = Math.floor(testX);
-    let mapY = Math.floor(testY);
+    return { distance: MAX_DEPTH, height: 0 };
+  }
 
-    if (map[mapY][mapX] > 0) {
-      hit = true;
-      wallHeight = map[mapY][mapX];
-      hitX = testX;
-      hitY = testY;
-      break;
+  function drawScene() {
+    // Clear canvas (transparent background)
+    ctx.clearRect(0, 0, WIDTH, HEIGHT);
+
+    // Draw sky (transparent = show through)
+    // Here we fill with sky color at top half of canvas
+    ctx.fillStyle = "#87CEEB"; // Sky blue
+    ctx.fillRect(0, 0, WIDTH, HEIGHT / 2);
+
+    // Draw floor (dark gray)
+    ctx.fillStyle = "#333";
+    ctx.fillRect(0, HEIGHT / 2, WIDTH, HEIGHT / 2);
+
+    // Cast rays and draw vertical slices
+    for (let i = 0; i < NUM_RAYS; i++) {
+      // Angle of ray relative to player viewing angle
+      const rayScreenPos = (i / NUM_RAYS) - 0.5;  // -0.5 to +0.5
+      const rayAngle = player.angle + rayScreenPos * FOV;
+
+      let ray = castRay(rayAngle);
+
+      // Remove fish-eye effect
+      let correctedDist = ray.distance * Math.cos(rayAngle - player.angle);
+
+      if (ray.height > 0) {
+        // Project wall height on screen
+        let projectedHeight = (HEIGHT / correctedDist) * ray.height;
+
+        // Y coordinate where wall starts (top)
+        let wallTop = (HEIGHT / 2) - projectedHeight;
+
+        // Draw wall slice as grey rectangle
+        ctx.fillStyle = "grey";
+        ctx.fillRect(i, wallTop, 1, projectedHeight);
+
+        // **No black shadow or fill below or above the wall**
+        // Transparent above = sky visible
+        // No black below = floor visible
+      }
     }
   }
-  return { distance, wallHeight, hitX, hitY, rayAngle };
-}
 
-function draw() {
-  ctx.clearRect(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT);
-
-  // Draw sky (simple gradient)
-  let skyGradient = ctx.createLinearGradient(0, 0, 0, SCREEN_HEIGHT / 2);
-  skyGradient.addColorStop(0, '#87ceeb');
-  skyGradient.addColorStop(1, '#4682b4');
-  ctx.fillStyle = skyGradient;
-  ctx.fillRect(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT / 2);
-
-  // Draw floor (simple color)
-  ctx.fillStyle = '#444';
-  ctx.fillRect(0, SCREEN_HEIGHT / 2, SCREEN_WIDTH, SCREEN_HEIGHT / 2);
-
-  // For each vertical slice (ray)
-  for (let i = 0; i < NUM_RAYS; i++) {
-    // Calculate ray angle relative to player direction
-    let rayScreenPos = (i / NUM_RAYS) - 0.5;
-    let rayAngle = player.angle + rayScreenPos * FOV;
-
-    let ray = castRay(rayAngle);
-
-    // Correct fisheye effect
-    let correctedDist = ray.distance * Math.cos(rayAngle - player.angle);
-
-    // Project wall height on screen
-    // You can adjust the projection scale for better effect
-    let projHeight = (1 / correctedDist) * SCREEN_HEIGHT * ray.wallHeight;
-
-    let wallTop = (SCREEN_HEIGHT / 2) - projHeight;
-    let wallBottom = (SCREEN_HEIGHT / 2) + projHeight;
-
-    // Darken color based on distance for simple shading
-    let shade = Math.min(1, 1 / (correctedDist * 0.5));
-    let greyValue = Math.floor(150 * shade);
-    let wallColor = `rgb(${greyValue},${greyValue},${greyValue})`;
-
-    // Draw wall slice
-    ctx.fillStyle = wallColor;
-    ctx.fillRect(i, wallTop, 1, wallBottom - wallTop);
-
-    // Draw transparent area above wall if wall is short (height < 1.5 for example)
-    if (ray.wallHeight < 1.5) {
-      let transparentTop = wallTop - (SCREEN_HEIGHT / 4); // amount of transparency above
-      if (transparentTop < 0) transparentTop = 0;
-
-      ctx.fillStyle = `rgba(128, 128, 128, 0.3)`; // grey transparent
-      ctx.fillRect(i, transparentTop, 1, wallTop - transparentTop);
-    }
-  }
-}
-
-// Game loop
-let lastTime = 0;
-function gameLoop(timestamp = 0) {
-  let delta = (timestamp - lastTime) / 1000;
-  lastTime = timestamp;
-
-  // Move player
-  if (keys['ArrowLeft']) {
-    player.angle -= player.rotSpeed * delta;
-  }
-  if (keys['ArrowRight']) {
-    player.angle += player.rotSpeed * delta;
-  }
-  let moveStep = 0;
-  if (keys['ArrowUp']) {
-    moveStep = player.moveSpeed * delta;
-  }
-  if (keys['ArrowDown']) {
-    moveStep = -player.moveSpeed * delta;
-  }
-  if (moveStep !== 0) {
-    let newX = player.x + Math.cos(player.angle) * moveStep;
-    let newY = player.y + Math.sin(player.angle) * moveStep;
-
-    // Simple collision detection
-    if (map[Math.floor(player.y)][Math.floor(newX)] == 0) player.x = newX;
-    if (map[Math.floor(newY)][Math.floor(player.x)] == 0) player.y = newY;
+  function update() {
+    // Player controls (left/right turn, forward/back)
+    window.addEventListener("keydown", (e) => {
+      if (e.key === "ArrowLeft") {
+        player.angle -= 0.05;
+      } else if (e.key === "ArrowRight") {
+        player.angle += 0.05;
+      } else if (e.key === "ArrowUp") {
+        player.x += Math.cos(player.angle) * player.speed;
+        player.y += Math.sin(player.angle) * player.speed;
+      } else if (e.key === "ArrowDown") {
+        player.x -= Math.cos(player.angle) * player.speed;
+        player.y -= Math.sin(player.angle) * player.speed;
+      }
+    });
   }
 
-  draw();
-  requestAnimationFrame(gameLoop);
-}
+  function gameLoop() {
+    drawScene();
+    requestAnimationFrame(gameLoop);
+  }
 
-gameLoop();
+  update();
+  gameLoop();
+})();
 </script>
 </body>
 </html>
