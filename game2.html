@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>Raycaster with Varied Wall Heights</title>
+  <title>Raycaster with Elevator, Doors, Items, and Health</title>
   <style>
     html, body {
       margin: 0; padding: 0; overflow: hidden; background: black;
@@ -25,6 +25,7 @@
 <body>
   <button id="fullscreenBtn">Go Fullscreen</button>
   <canvas id="game"></canvas>
+
   <script>
     const canvas = document.getElementById("game");
     const ctx = canvas.getContext("2d");
@@ -62,31 +63,22 @@
       "####################"
     ];
 
-    let wallHeights = [
-      "11111111111111111111",
-      "1..................1",
-      "1..................1",
-      "1.......2..........1",
-      "1.......2..........1",
-      "1..................1",
-      "1.......3333.......1",
-      "1.......3....3.....1",
-      "1.......3....3.....1",
-      "1.......3....3.....1",
-      "1........3444......1",
-      "1..................1",
-      "1..................1",
-      "1..................1",
-      "1..................1",
-      "11111111111111111111"
-    ];
-
-    let currentMap = floor1;
-    let currentHeights = wallHeights;
+    let wallHeights = floor1.map(row =>
+      row.split('').map(cell => {
+        if (cell === '#') return 1;
+        if (cell === 'B') return 1;
+        if (cell === 'D') return 1;
+        if (cell === 'I') return 0;
+        return 0;
+      })
+    );
 
     let posX = 8.5, posY = 10.5;
     let dirX = 1, dirY = 0;
     let planeX = 0, planeY = 0.66;
+    const keys = {};
+    document.addEventListener("keydown", e => keys[e.key.toLowerCase()] = true);
+    document.addEventListener("keyup", e => keys[e.key.toLowerCase()] = false);
 
     function gameLoop() {
       const w = canvas.width, h = canvas.height;
@@ -104,7 +96,7 @@
         let sideDistX, sideDistY;
         const deltaDistX = Math.abs(1 / rayDirX);
         const deltaDistY = Math.abs(1 / rayDirY);
-        let stepX, stepY, side, hit = 0, hitChar = '';
+        let stepX, stepY, side, hit = 0;
 
         if (rayDirX < 0) {
           stepX = -1;
@@ -132,43 +124,56 @@
             mapY += stepY;
             side = 1;
           }
-          hitChar = currentMap[mapY][mapX];
-          if (hitChar === '#' || hitChar === 'B' || hitChar === 'D' || hitChar === 'I') hit = 1;
+          if (wallHeights[mapY][mapX] > 0) hit = 1;
         }
 
         const perpWallDist = side === 0
           ? (mapX - posX + (1 - stepX) / 2) / rayDirX
           : (mapY - posY + (1 - stepY) / 2) / rayDirY;
 
-        let heightScale = 1;
-        if (hitChar === '#') {
-          const heightChar = currentHeights[mapY][mapX];
-          if (heightChar >= '1' && heightChar <= '9') {
-            heightScale = parseInt(heightChar);
-          }
-        }
-
-        const lineHeight = Math.floor((h / perpWallDist) * (heightScale / 2));
+        const lineHeight = Math.floor(h / perpWallDist);
         const drawStart = -lineHeight / 2 + h / 2;
         const drawEnd = lineHeight / 2 + h / 2;
 
-        let color;
-        if (hitChar === '#') {
-          const shade = side === 1 ? 180 : 255;
-          color = `rgb(${shade},${shade},${shade})`;
-        } else if (hitChar === 'B') {
-          color = side === 1 ? `rgb(100, 180, 255)` : `rgb(130, 210, 255)`;
-        } else if (hitChar === 'D') {
-          color = side === 1 ? `rgb(139,69,19)` : `rgb(160,82,45)`;
-        } else if (hitChar === 'I') {
-          color = side === 1 ? `rgb(255,215,0)` : `rgb(255,223,0)`;
-        }
-
-        ctx.strokeStyle = color;
+        ctx.strokeStyle = side ? "rgb(180,180,180)" : "rgb(255,255,255)";
         ctx.beginPath();
         ctx.moveTo(x, drawStart);
         ctx.lineTo(x, drawEnd);
         ctx.stroke();
+      }
+
+      const moveSpeed = 0.05;
+      const rotSpeed = 0.03;
+
+      if (keys['w'] || keys['arrowup']) {
+        const forwardX = posX + dirX * moveSpeed;
+        const forwardY = posY + dirY * moveSpeed;
+        if (wallHeights[Math.floor(posY)][Math.floor(forwardX)] === 0) posX = forwardX;
+        if (wallHeights[Math.floor(forwardY)][Math.floor(posX)] === 0) posY = forwardY;
+      }
+
+      if (keys['s'] || keys['arrowdown']) {
+        const backX = posX - dirX * moveSpeed;
+        const backY = posY - dirY * moveSpeed;
+        if (wallHeights[Math.floor(posY)][Math.floor(backX)] === 0) posX = backX;
+        if (wallHeights[Math.floor(backY)][Math.floor(posX)] === 0) posY = backY;
+      }
+
+      if (keys['arrowleft']) {
+        const oldDirX = dirX;
+        dirX = dirX * Math.cos(-rotSpeed) - dirY * Math.sin(-rotSpeed);
+        dirY = oldDirX * Math.sin(-rotSpeed) + dirY * Math.cos(-rotSpeed);
+        const oldPlaneX = planeX;
+        planeX = planeX * Math.cos(-rotSpeed) - planeY * Math.sin(-rotSpeed);
+        planeY = oldPlaneX * Math.sin(-rotSpeed) + planeY * Math.cos(-rotSpeed);
+      }
+      if (keys['arrowright']) {
+        const oldDirX = dirX;
+        dirX = dirX * Math.cos(rotSpeed) - dirY * Math.sin(rotSpeed);
+        dirY = oldDirX * Math.sin(rotSpeed) + dirY * Math.cos(rotSpeed);
+        const oldPlaneX = planeX;
+        planeX = planeX * Math.cos(rotSpeed) - planeY * Math.sin(rotSpeed);
+        planeY = oldPlaneX * Math.sin(rotSpeed) + planeY * Math.cos(rotSpeed);
       }
 
       requestAnimationFrame(gameLoop);
