@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>Raycaster with Elevator, Doors, Items, and Health</title>
+  <title>Raycaster with Elevator, Doors, Items, and Health - Variable Wall Heights</title>
   <style>
     html, body {
       margin: 0; padding: 0; overflow: hidden; background: black;
@@ -63,13 +63,14 @@
       "####################"
     ];
 
+    // Map each symbol to a wall height (0 = no wall, 1 = full height, fractional = partial height)
     let wallHeights = floor1.map(row =>
       row.split('').map(cell => {
-        if (cell === '#') return 1;
-        if (cell === 'B') return 1;
-        if (cell === 'D') return 1;
-        if (cell === 'I') return 0;
-        return 0;
+        if (cell === '#') return 1;       // Full height wall
+        if (cell === 'B') return 0.5;     // Half height wall
+        if (cell === 'D') return 0.75;    // 75% height wall
+        if (cell === 'I') return 0;       // No wall (item or empty)
+        return 0;                        // Empty space
       })
     );
 
@@ -131,20 +132,33 @@
           ? (mapX - posX + (1 - stepX) / 2) / rayDirX
           : (mapY - posY + (1 - stepY) / 2) / rayDirY;
 
-        const lineHeight = Math.floor(h / perpWallDist);
-        const drawStart = -lineHeight / 2 + h / 2;
-        const drawEnd = lineHeight / 2 + h / 2;
+        // Get wall height level from map
+        const heightLevel = wallHeights[mapY][mapX];  // e.g. 1, 0.5, 0.75, etc.
 
-        ctx.strokeStyle = side ? "rgb(180,180,180)" : "rgb(255,255,255)";
+        // Calculate base line height
+        const baseLineHeight = Math.floor(h / perpWallDist);
+
+        // Scale line height by wall height level
+        const lineHeight = baseLineHeight * heightLevel;
+
+        // Calculate start and end for vertical line
+        const drawStart = Math.floor(-lineHeight / 2 + h / 2);
+        const drawEnd = Math.floor(lineHeight / 2 + h / 2);
+
+        // Shade walls slightly differently depending on side
+        const colorValue = side ? 180 : 255;
+        ctx.strokeStyle = `rgb(${colorValue},${colorValue},${colorValue})`;
         ctx.beginPath();
         ctx.moveTo(x, drawStart);
         ctx.lineTo(x, drawEnd);
         ctx.stroke();
       }
 
+      // Movement speed and rotation speed
       const moveSpeed = 0.05;
       const rotSpeed = 0.03;
 
+      // Move forward
       if (keys['w'] || keys['arrowup']) {
         const forwardX = posX + dirX * moveSpeed;
         const forwardY = posY + dirY * moveSpeed;
@@ -152,6 +166,7 @@
         if (wallHeights[Math.floor(forwardY)][Math.floor(posX)] === 0) posY = forwardY;
       }
 
+      // Move backward
       if (keys['s'] || keys['arrowdown']) {
         const backX = posX - dirX * moveSpeed;
         const backY = posY - dirY * moveSpeed;
@@ -159,6 +174,7 @@
         if (wallHeights[Math.floor(backY)][Math.floor(posX)] === 0) posY = backY;
       }
 
+      // Rotate left
       if (keys['arrowleft']) {
         const oldDirX = dirX;
         dirX = dirX * Math.cos(-rotSpeed) - dirY * Math.sin(-rotSpeed);
@@ -167,6 +183,8 @@
         planeX = planeX * Math.cos(-rotSpeed) - planeY * Math.sin(-rotSpeed);
         planeY = oldPlaneX * Math.sin(-rotSpeed) + planeY * Math.cos(-rotSpeed);
       }
+
+      // Rotate right
       if (keys['arrowright']) {
         const oldDirX = dirX;
         dirX = dirX * Math.cos(rotSpeed) - dirY * Math.sin(rotSpeed);
