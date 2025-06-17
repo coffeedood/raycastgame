@@ -116,13 +116,9 @@
 
     const inventory = [];
     let health = 100;
+    let eKeyPressed = false;
 
-    let eKeyPressed = false; // <-- NEW: For debouncing 'e' key
-
-    const doorPositions = {
-      1: [],
-      2: []
-    };
+    const doorPositions = { 1: [], 2: [] };
     function recordDoorPositions(map, floorNumber) {
       for (let y = 0; y < map.length; y++) {
         for (let x = 0; x < map[y].length; x++) {
@@ -150,14 +146,12 @@
     function drawHUD() {
       const w = canvas.width;
       const h = canvas.height;
-
       ctx.fillStyle = "#000";
       ctx.fillRect(20, h - 50, 204, 24);
       ctx.fillStyle = "#f00";
       ctx.fillRect(22, h - 48, 2 * health, 20);
       ctx.strokeStyle = "#fff";
       ctx.strokeRect(20, h - 50, 204, 24);
-
       ctx.fillStyle = "#fff";
       ctx.font = "16px monospace";
       ctx.fillText("Health: " + health, 25, h - 25);
@@ -179,7 +173,6 @@
 
         let mapX = Math.floor(posX);
         let mapY = Math.floor(posY);
-
         let sideDistX, sideDistY;
         const deltaDistX = Math.abs(1 / rayDirX);
         const deltaDistY = Math.abs(1 / rayDirY);
@@ -223,6 +216,17 @@
         const drawStart = -lineHeight / 2 + h / 2;
         const drawEnd = lineHeight / 2 + h / 2;
 
+        let adjustedDrawStart = drawStart;
+        let adjustedDrawEnd = drawEnd;
+
+        if (hitChar === 'I') {
+          const itemHeightFactor = 0.4; // shrink to 40% height
+          const center = h / 2;
+          const itemHeight = lineHeight * itemHeightFactor;
+          adjustedDrawStart = center - itemHeight / 2;
+          adjustedDrawEnd = center + itemHeight / 2;
+        }
+
         let color;
         if (hitChar === '#') {
           const shade = side === 1 ? 180 : 255;
@@ -237,8 +241,8 @@
 
         ctx.strokeStyle = color;
         ctx.beginPath();
-        ctx.moveTo(x, drawStart);
-        ctx.lineTo(x, drawEnd);
+        ctx.moveTo(x, adjustedDrawStart);
+        ctx.lineTo(x, adjustedDrawEnd);
         ctx.stroke();
       }
 
@@ -277,7 +281,6 @@
         }
       }
 
-      // Debounced interaction key
       if (keys['e'] && !eKeyPressed) {
         eKeyPressed = true;
         const frontX = Math.floor(posX + dirX);
@@ -302,7 +305,7 @@
         }
       }
 
-      if (!keys['e']) eKeyPressed = false; // Reset debounce
+      if (!keys['e']) eKeyPressed = false;
 
       const tileSize = 5;
       const offsetX = canvas.width - currentMap[0].length * tileSize - 10;
@@ -331,10 +334,7 @@
       ctx.strokeStyle = "red";
       ctx.beginPath();
       ctx.moveTo(offsetX + posX * tileSize, offsetY + posY * tileSize);
-      ctx.lineTo(
-        offsetX + (posX + dirX * 0.7) * tileSize,
-        offsetY + (posY + dirY * 0.7) * tileSize
-      );
+      ctx.lineTo(offsetX + (posX + dirX * 0.7) * tileSize, offsetY + (posY + dirY * 0.7) * tileSize);
       ctx.stroke();
 
       if (selectingFloor) {
