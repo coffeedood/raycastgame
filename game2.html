@@ -116,6 +116,7 @@
 
     const inventory = [];
     let health = 100;
+
     let eKeyPressed = false;
 
     const doorPositions = { 1: [], 2: [] };
@@ -146,12 +147,14 @@
     function drawHUD() {
       const w = canvas.width;
       const h = canvas.height;
+
       ctx.fillStyle = "#000";
       ctx.fillRect(20, h - 50, 204, 24);
       ctx.fillStyle = "#f00";
       ctx.fillRect(22, h - 48, 2 * health, 20);
       ctx.strokeStyle = "#fff";
       ctx.strokeRect(20, h - 50, 204, 24);
+
       ctx.fillStyle = "#fff";
       ctx.font = "16px monospace";
       ctx.fillText("Health: " + health, 25, h - 25);
@@ -163,9 +166,6 @@
       ctx.fillStyle = "black";
       ctx.fillRect(0, 0, w, h);
 
-      const mapWidth = currentMap[0].length;
-      const mapHeight = currentMap.length;
-
       for (let x = 0; x < w; x++) {
         const cameraX = 2 * x / w - 1;
         const rayDirX = dirX + planeX * cameraX;
@@ -173,6 +173,7 @@
 
         let mapX = Math.floor(posX);
         let mapY = Math.floor(posY);
+
         let sideDistX, sideDistY;
         const deltaDistX = Math.abs(1 / rayDirX);
         const deltaDistY = Math.abs(1 / rayDirY);
@@ -212,19 +213,16 @@
           ? (mapX - posX + (1 - stepX) / 2) / rayDirX
           : (mapY - posY + (1 - stepY) / 2) / rayDirY;
 
-        const lineHeight = Math.floor(h / perpWallDist);
-        const drawStart = -lineHeight / 2 + h / 2;
-        const drawEnd = lineHeight / 2 + h / 2;
+        let lineHeight = Math.floor(h / perpWallDist);
+        let drawStart = -lineHeight / 2 + h / 2;
+        let drawEnd = lineHeight / 2 + h / 2;
 
-        let adjustedDrawStart = drawStart;
-        let adjustedDrawEnd = drawEnd;
-
+        // Make items very small visually
         if (hitChar === 'I') {
-          const itemHeightFactor = 0.4; // shrink to 40% height
+          const itemHeight = Math.max(5, h / (perpWallDist * 5)); // shrink item height
           const center = h / 2;
-          const itemHeight = lineHeight * itemHeightFactor;
-          adjustedDrawStart = center - itemHeight / 2;
-          adjustedDrawEnd = center + itemHeight / 2;
+          drawStart = center - itemHeight / 2;
+          drawEnd = center + itemHeight / 2;
         }
 
         let color;
@@ -241,8 +239,8 @@
 
         ctx.strokeStyle = color;
         ctx.beginPath();
-        ctx.moveTo(x, adjustedDrawStart);
-        ctx.lineTo(x, adjustedDrawEnd);
+        ctx.moveTo(x, drawStart);
+        ctx.lineTo(x, drawEnd);
         ctx.stroke();
       }
 
@@ -334,7 +332,10 @@
       ctx.strokeStyle = "red";
       ctx.beginPath();
       ctx.moveTo(offsetX + posX * tileSize, offsetY + posY * tileSize);
-      ctx.lineTo(offsetX + (posX + dirX * 0.7) * tileSize, offsetY + (posY + dirY * 0.7) * tileSize);
+      ctx.lineTo(
+        offsetX + (posX + dirX * 0.7) * tileSize,
+        offsetY + (posY + dirY * 0.7) * tileSize
+      );
       ctx.stroke();
 
       if (selectingFloor) {
