@@ -19,9 +19,8 @@ const ctx = canvas.getContext("2d");
 const w = canvas.width = window.innerWidth;
 const h = canvas.height = window.innerHeight;
 
-// Map is 24x24 but with smaller tiles (map doubled in size)
 const MAP_SIZE = 24;
-const TILE_SIZE = 0.5; // Each tile is half size in world units (walls are bigger on map scale)
+const TILE_SIZE = 0.5; // world units per tile
 const WALL_HEIGHT = 1.0;
 
 const map = [
@@ -35,7 +34,7 @@ const map = [
   [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
   [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
   [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
-  [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+  [1,0,0,0,0,0,0,0,0,0,2,2,0,0,0,0,0,0,0,0,0,0,0,1],
   [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
   [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
   [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
@@ -51,15 +50,11 @@ const map = [
   [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1]
 ];
 
-// Doors map: 2 means door
-// Example: put some doors at these positions
+// Doors map 2
 map[10][10] = 2;
-map[10][11] = 2; // double wide door
+map[10][11] = 2;
 
-map[14][15] = 2;
-map[14][16] = 2; // another double door
-
-// Player pos - somewhere inside the map
+// Player position
 let posX = 12.5;
 let posY = 12.5;
 let dirX = -1;
@@ -67,22 +62,22 @@ let dirY = 0;
 let planeX = 0;
 let planeY = 0.66;
 
-// Movement speed
+// Movement
 const moveSpeed = 0.05;
 const rotSpeed = 0.03;
 
-// Items on the map, at normal scale coordinates (not doubled)
+const keys = {};
+window.addEventListener("keydown", e => { keys[e.key] = true; });
+window.addEventListener("keyup", e => { keys[e.key] = false; });
+
+// Items — positions on map (in world coords)
 const items = [
   { x: 13.5, y: 10.5, name: "Gold" },
   { x: 15.2, y: 13.8, name: "Potion" },
   { x: 11.3, y: 14.4, name: "Key" }
 ];
 
-// Key controls
-const keys = {};
-window.addEventListener("keydown", e => { keys[e.key] = true; });
-window.addEventListener("keyup", e => { keys[e.key] = false; });
-
+// Movement logic
 function update() {
   if(keys["w"]) {
     const nextX = posX + dirX * moveSpeed;
@@ -97,7 +92,6 @@ function update() {
     if(map[Math.floor(posX)][Math.floor(nextY)] === 0) posY = nextY;
   }
   if(keys["a"]) {
-    // rotate left
     const oldDirX = dirX;
     dirX = dirX * Math.cos(rotSpeed) - dirY * Math.sin(rotSpeed);
     dirY = oldDirX * Math.sin(rotSpeed) + dirY * Math.cos(rotSpeed);
@@ -106,7 +100,6 @@ function update() {
     planeY = oldPlaneX * Math.sin(rotSpeed) + planeY * Math.cos(rotSpeed);
   }
   if(keys["d"]) {
-    // rotate right
     const oldDirX = dirX;
     dirX = dirX * Math.cos(-rotSpeed) - dirY * Math.sin(-rotSpeed);
     dirY = oldDirX * Math.sin(-rotSpeed) + dirY * Math.cos(-rotSpeed);
@@ -116,47 +109,26 @@ function update() {
   }
 }
 
-// Raycasting and drawing
-function render() {
-  ctx.clearRect(0, 0, w, h);
-
-  // Draw ceiling
-  ctx.fillStyle = "#333";
-  ctx.fillRect(0, 0, w, h / 2);
-
-  // Draw floor
-  ctx.fillStyle = "#777";
-  ctx.fillRect(0, h / 2, w, h / 2);
-
-  // Raycasting for each vertical stripe (column)
+// Raycasting walls & doors
+function castRays() {
   for(let x = 0; x < w; x++) {
-    // Calculate ray position and direction
-    const cameraX = 2 * x / w - 1; // camera space x coordinate in [-1, 1]
+    const cameraX = 2 * x / w - 1;
     const rayDirX = dirX + planeX * cameraX;
     const rayDirY = dirY + planeY * cameraX;
 
-    // Map coordinates of player
     let mapX = Math.floor(posX);
     let mapY = Math.floor(posY);
 
-    // Length of ray from current position to next x or y side
-    let sideDistX;
-    let sideDistY;
+    let sideDistX, sideDistY;
 
-    // Length of ray from one x or y side to next x or y side
     const deltaDistX = Math.abs(1 / rayDirX);
     const deltaDistY = Math.abs(1 / rayDirY);
 
-    let perpWallDist;
+    let stepX, stepY;
 
-    // Direction to step in x or y (+1 or -1)
-    let stepX;
-    let stepY;
+    let hit = 0;
+    let side;
 
-    let hit = 0; // was there a wall hit?
-    let side; // was a NS or EW wall hit?
-
-    // Calculate step and initial sideDist
     if(rayDirX < 0) {
       stepX = -1;
       sideDistX = (posX - mapX) * deltaDistX;
@@ -172,9 +144,7 @@ function render() {
       sideDistY = (mapY + 1.0 - posY) * deltaDistY;
     }
 
-    // Perform DDA
     while(hit === 0) {
-      // Jump to next map square, either in x-direction, or y-direction
       if(sideDistX < sideDistY) {
         sideDistX += deltaDistX;
         mapX += stepX;
@@ -184,39 +154,32 @@ function render() {
         mapY += stepY;
         side = 1;
       }
-      // Check if ray has hit a wall or door
       if(map[mapX] && map[mapX][mapY] > 0) hit = 1;
     }
 
-    // Calculate distance projected on camera direction (correct for fish-eye)
+    let perpWallDist;
     if(side === 0) perpWallDist = (mapX - posX + (1 - stepX) / 2) / rayDirX;
     else perpWallDist = (mapY - posY + (1 - stepY) / 2) / rayDirY;
 
-    // Calculate height of line to draw
+    // Wall height on screen
     let lineHeight = Math.floor(h / perpWallDist);
 
-    // Determine wall or door type and adjust appearance
-    const tileType = map[mapX][mapY];
-
-    // Draw the vertical line for wall or door
-    if(tileType === 1) {
-      // Wall - solid gray
+    // Draw walls or doors
+    const tile = map[mapX][mapY];
+    if(tile === 1) {
       ctx.fillStyle = side === 1 ? "#888" : "#BBB";
       ctx.fillRect(x, (h - lineHeight) / 2, 1, lineHeight);
-    } else if(tileType === 2) {
-      // Door - bigger and brownish
-      // Let's make door twice as wide by drawing two adjacent vertical stripes
+    } else if(tile === 2) {
+      // Door - draw double width (two vertical stripes)
       ctx.fillStyle = side === 1 ? "#553311" : "#774422";
       ctx.fillRect(x, (h - lineHeight) / 2, 1, lineHeight);
-
-      // Also draw the next stripe for door width (if in bounds)
-      if (x + 1 < w) {
-        ctx.fillRect(x + 1, (h - lineHeight) / 2, 1, lineHeight);
-      }
+      if(x + 1 < w) ctx.fillRect(x + 1, (h - lineHeight) / 2, 1, lineHeight);
     }
   }
+}
 
-  // Draw items as small 3D floor sprites on the ground
+// Draw items as small 3D "floor cubes" on ground
+function drawItems() {
   items.forEach(item => {
     const spriteX = item.x - posX;
     const spriteY = item.y - posY;
@@ -226,34 +189,77 @@ function render() {
     const transformX = invDet * (dirY * spriteX - dirX * spriteY);
     const transformY = invDet * (-planeY * spriteX + planeX * spriteY);
 
-    if(transformY > 0) {
-      const spriteScreenX = Math.floor((w / 2) * (1 + transformX / transformY));
+    if(transformY <= 0) return; // Behind player - skip
 
-      // base size depending on distance
-      const baseSize = h / transformY;
+    const spriteScreenX = Math.floor((w / 2) * (1 + transformX / transformY));
 
-      // Items smaller and on ground (floor sprites)
-      const spriteHeight = baseSize / 8; // very small height for floor item
-      const spriteWidth = spriteHeight;
+    // Distance based size
+    const baseSize = h / transformY;
 
-      // Draw near bottom of screen to simulate ground
-      const drawStartY = h - spriteHeight - 10; // 10px above bottom edge
-      const drawEndY = drawStartY + spriteHeight;
+    // We want a small cube on the floor:
+    // Cube size smaller than wall slice height
+    const cubeHeight = baseSize / 8;
+    const cubeWidth = cubeHeight;
 
-      const drawStartX = spriteScreenX - spriteWidth / 2;
-      const drawEndX = drawStartX + spriteWidth;
+    // Calculate vertical offset so cube sits on floor (bottom of screen)
+    // The floor line is at h/2, wall bottom is at (h + lineHeight)/2 for walls
+    // We'll put the cube so its bottom is slightly above the bottom of canvas
+    const floorPosY = h / 1.05; // near bottom of screen (~95%)
+    const drawStartY = floorPosY - cubeHeight;
+    const drawEndY = floorPosY;
 
-      // Draw the item rectangle (yellow for visibility)
-      ctx.fillStyle = "yellow";
-      ctx.fillRect(drawStartX, drawStartY, spriteWidth, spriteHeight);
+    // Horizontal position centered at spriteScreenX
+    const drawStartX = spriteScreenX - cubeWidth / 2;
+    const drawEndX = spriteScreenX + cubeWidth / 2;
 
-      // Draw item name above item (small font)
-      ctx.fillStyle = "white";
-      ctx.font = "10px monospace";
-      ctx.textAlign = "center";
-      ctx.fillText(item.name, spriteScreenX, drawStartY - 5);
-    }
+    // Draw cube base (floor part)
+    ctx.fillStyle = "#FFD700"; // gold color
+    ctx.fillRect(drawStartX, drawStartY, cubeWidth, cubeHeight);
+
+    // Draw "3D" sides for cube
+    // Left side (darker)
+    ctx.fillStyle = "#B8860B";
+    ctx.beginPath();
+    ctx.moveTo(drawStartX, drawEndY);
+    ctx.lineTo(drawStartX, drawStartY);
+    ctx.lineTo(drawStartX - cubeWidth / 4, drawStartY - cubeHeight / 2);
+    ctx.lineTo(drawStartX - cubeWidth / 4, drawEndY - cubeHeight / 2);
+    ctx.closePath();
+    ctx.fill();
+
+    // Top side (lighter)
+    ctx.fillStyle = "#FFEC8B";
+    ctx.beginPath();
+    ctx.moveTo(drawStartX, drawStartY);
+    ctx.lineTo(drawStartX + cubeWidth, drawStartY);
+    ctx.lineTo(drawStartX + cubeWidth - cubeWidth / 4, drawStartY - cubeHeight / 2);
+    ctx.lineTo(drawStartX - cubeWidth / 4, drawStartY - cubeHeight / 2);
+    ctx.closePath();
+    ctx.fill();
+
+    // Draw item name above cube
+    ctx.fillStyle = "white";
+    ctx.font = "12px monospace";
+    ctx.textAlign = "center";
+    ctx.fillText(item.name, spriteScreenX, drawStartY - cubeHeight - 5);
   });
+}
+
+function render() {
+  // Clear screen
+  ctx.clearRect(0, 0, w, h);
+
+  // Ceiling
+  ctx.fillStyle = "#333";
+  ctx.fillRect(0, 0, w, h / 2);
+
+  // Floor
+  ctx.fillStyle = "#777";
+  ctx.fillRect(0, h / 2, w, h / 2);
+
+  castRays();
+
+  drawItems();
 }
 
 function gameLoop() {
