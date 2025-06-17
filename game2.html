@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>Raycaster with Elevator, Doors, Items, and Health - Variable Wall Heights</title>
+  <title>Raycaster with Elevator, Doors, Items, and Health - More Visible Wall Height Variation</title>
   <style>
     html, body {
       margin: 0; padding: 0; overflow: hidden; background: black;
@@ -63,14 +63,17 @@
       "####################"
     ];
 
-    // Map each symbol to a wall height (0 = no wall, 1 = full height, fractional = partial height)
+    // Adjust heights to create very noticeable height differences
+    // Full height: 1.0
+    // Medium height: 0.5
+    // Very short height: 0.2
     let wallHeights = floor1.map(row =>
       row.split('').map(cell => {
-        if (cell === '#') return 1;       // Full height wall
-        if (cell === 'B') return 0.5;     // Half height wall
-        if (cell === 'D') return 0.75;    // 75% height wall
-        if (cell === 'I') return 0;       // No wall (item or empty)
-        return 0;                        // Empty space
+        if (cell === '#') return 1.0;       // Full height wall
+        if (cell === 'B') return 0.2;       // Very short wall (20%)
+        if (cell === 'D') return 0.5;       // Medium height wall (50%)
+        if (cell === 'I') return 0;         // No wall (item or empty)
+        return 0;                          // Empty space
       })
     );
 
@@ -133,7 +136,7 @@
           : (mapY - posY + (1 - stepY) / 2) / rayDirY;
 
         // Get wall height level from map
-        const heightLevel = wallHeights[mapY][mapX];  // e.g. 1, 0.5, 0.75, etc.
+        const heightLevel = wallHeights[mapY][mapX];  // e.g. 1.0, 0.5, 0.2, etc.
 
         // Calculate base line height
         const baseLineHeight = Math.floor(h / perpWallDist);
