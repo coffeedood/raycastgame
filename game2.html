@@ -1,15 +1,11 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>Raycasting Game with Varying Heights</title>
+  <title>Raycasting with Movement</title>
   <style>
     html, body {
-      margin: 0;
-      padding: 0;
-      overflow: hidden;
-      background: black;
-      height: 100%;
-      width: 100%;
+      margin: 0; padding: 0; overflow: hidden; background: black;
+      height: 100%; width: 100%;
     }
     canvas { display: block; }
   </style>
@@ -22,7 +18,7 @@ const ctx = canvas.getContext("2d");
 canvas.width = window.innerWidth;
 canvas.height = window.innerHeight;
 
-// Simple map with varying block heights
+// MAP: 0 = walkable, >0 = wall of varying height
 const map = [
   [1,1,1,1,1,1,1,1],
   [1,0,0,0,0,0,0,1],
@@ -33,7 +29,8 @@ const map = [
   [1,1,1,1,1,1,1,1]
 ];
 
-let posX = 2.5, posY = 2.5;
+// Start in an open space
+let posX = 3.5, posY = 3.5;
 let dirX = -1, dirY = 0;
 let planeX = 0, planeY = 0.66;
 
@@ -42,8 +39,9 @@ document.addEventListener('keydown', e => keys[e.key.toLowerCase()] = true);
 document.addEventListener('keyup', e => keys[e.key.toLowerCase()] = false);
 
 function isWalkable(x, y) {
-  const tile = map[Math.floor(y)]?.[Math.floor(x)];
-  return tile === 0;
+  const mx = Math.floor(x);
+  const my = Math.floor(y);
+  return map[my] && map[my][mx] === 0;
 }
 
 function gameLoop() {
@@ -110,9 +108,9 @@ function gameLoop() {
     const drawStart = Math.max(0, -lineHeight / 2 + h / 2);
     const drawEnd = Math.min(h, lineHeight / 2 + h / 2);
 
-    const colorVal = 255 - height * 30;
     const shade = side === 1 ? 0.7 : 1;
-    ctx.strokeStyle = `rgb(${colorVal * shade}, ${colorVal * shade}, ${colorVal * shade})`;
+    const color = 255 - height * 30;
+    ctx.strokeStyle = `rgb(${color * shade}, ${color * shade}, ${color * shade})`;
     ctx.beginPath();
     ctx.moveTo(x, drawStart);
     ctx.lineTo(x, drawEnd);
@@ -121,7 +119,7 @@ function gameLoop() {
 
   // Movement
   const moveSpeed = 0.05;
-  const rotSpeed = 0.03;
+  const rotSpeed = 0.04;
 
   if (keys['w']) {
     const nextX = posX + dirX * moveSpeed;
