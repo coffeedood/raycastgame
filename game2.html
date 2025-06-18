@@ -1,107 +1,121 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>Minecraft-Like Blocks</title>
+  <title>Raycasting with Varying Heights</title>
   <style>
-    body { margin: 0; background: #222; overflow: hidden; }
-    canvas { display: block; margin: 0 auto; background: #333; }
+    body { margin: 0; overflow: hidden; background: black; }
+    canvas { display: block; }
   </style>
 </head>
 <body>
-<canvas id="gameCanvas" width="1000" height="600"></canvas>
+<canvas id="gameCanvas" width="800" height="600"></canvas>
 <script>
 const canvas = document.getElementById("gameCanvas");
 const ctx = canvas.getContext("2d");
+const WIDTH = canvas.width;
+const HEIGHT = canvas.height;
 
-const mapWidth = 20;
-const mapHeight = 20;
+// Simple map with varying heights (0 = empty, 1-5 = wall height)
+const map = [
+  [3,3,3,3,3,3,3,3],
+  [3,0,0,0,0,0,0,3],
+  [3,0,1,0,2,0,0,3],
+  [3,0,0,5,0,0,0,3],
+  [3,0,2,0,4,0,0,3],
+  [3,0,0,0,0,0,0,3],
+  [3,3,3,3,3,3,3,3],
+];
+const mapW = map[0].length;
+const mapH = map.length;
 
-// Generate terrain with varying heights
-const world = [];
-for (let y = 0; y < mapHeight; y++) {
-  const row = [];
-  for (let x = 0; x < mapWidth; x++) {
-    const height = Math.floor(Math.random() * 4); // 0 to 3 blocks high
-    row.push(height);
-  }
-  world.push(row);
-}
+// Player position
+let posX = 3.5;
+let posY = 3.5;
+let dir = Math.PI / 4; // Facing 45 degrees
 
-// Isometric projection settings
-const TILE_WIDTH = 64;
-const TILE_HEIGHT = 32;
-const BLOCK_HEIGHT = 16;
+// Movement
+let keys = {};
+document.addEventListener("keydown", e => keys[e.key] = true);
+document.addEventListener("keyup", e => keys[e.key] = false);
 
-let camX = 0;
-let camY = 0;
+function castRays() {
+  const fov = Math.PI / 3;
+  const numRays = WIDTH;
+  const angleStep = fov / numRays;
 
-// Convert tile to isometric screen position
-function isoX(x, y) {
-  return (x - y) * TILE_WIDTH / 2 + canvas.width / 2 + camX;
-}
+  for (let i = 0; i < numRays; i++) {
+    const rayAngle = dir - fov / 2 + i * angleStep;
+    let rayX = posX;
+    let rayY = posY;
 
-function isoY(x, y, z) {
-  return (x + y) * TILE_HEIGHT / 2 - z * BLOCK_HEIGHT + camY;
-}
+    const stepSize = 0.01;
+    let hit = false;
+    let dist = 0;
+    let height = 0;
 
-function drawBlock(x, y, z) {
-  const sx = isoX(x, y);
-  const sy = isoY(x, y, z);
+    while (!hit && dist < 20) {
+      rayX += Math.cos(rayAngle) * stepSize;
+      rayY += Math.sin(rayAngle) * stepSize;
+      dist += stepSize;
 
-  // Top
-  ctx.fillStyle = "#4caf50";
-  ctx.beginPath();
-  ctx.moveTo(sx, sy);
-  ctx.lineTo(sx + TILE_WIDTH / 2, sy + TILE_HEIGHT / 2);
-  ctx.lineTo(sx, sy + TILE_HEIGHT);
-  ctx.lineTo(sx - TILE_WIDTH / 2, sy + TILE_HEIGHT / 2);
-  ctx.closePath();
-  ctx.fill();
+      const mx = Math.floor(rayX);
+      const my = Math.floor(rayY);
 
-  // Left
-  ctx.fillStyle = "#388e3c";
-  ctx.beginPath();
-  ctx.moveTo(sx - TILE_WIDTH / 2, sy + TILE_HEIGHT / 2);
-  ctx.lineTo(sx, sy + TILE_HEIGHT);
-  ctx.lineTo(sx, sy + TILE_HEIGHT + BLOCK_HEIGHT);
-  ctx.lineTo(sx - TILE_WIDTH / 2, sy + TILE_HEIGHT / 2 + BLOCK_HEIGHT);
-  ctx.closePath();
-  ctx.fill();
-
-  // Right
-  ctx.fillStyle = "#2e7d32";
-  ctx.beginPath();
-  ctx.moveTo(sx, sy + TILE_HEIGHT);
-  ctx.lineTo(sx + TILE_WIDTH / 2, sy + TILE_HEIGHT / 2);
-  ctx.lineTo(sx + TILE_WIDTH / 2, sy + TILE_HEIGHT / 2 + BLOCK_HEIGHT);
-  ctx.lineTo(sx, sy + TILE_HEIGHT + BLOCK_HEIGHT);
-  ctx.closePath();
-  ctx.fill();
-}
-
-function drawWorld() {
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
-  for (let y = 0; y < mapHeight; y++) {
-    for (let x = 0; x < mapWidth; x++) {
-      let h = world[y][x];
-      for (let z = 0; z <= h; z++) {
-        drawBlock(x, y, z);
+      if (mx >= 0 && mx < mapW && my >= 0 && my < mapH) {
+        height = map[my][mx];
+        if (height > 0) hit = true;
+      } else {
+        hit = true;
+        height = 0;
       }
     }
+
+    // Fix fisheye effect
+    const correctedDist = dist * Math.cos(rayAngle - dir);
+
+    const wallHeight = (HEIGHT / correctedDist) * (height / 3);
+    const y1 = HEIGHT / 2 - wallHeight;
+    const y2 = HEIGHT / 2 + wallHeight;
+
+    const shade = 50 + height * 40;
+    ctx.fillStyle = `rgb(${shade},${shade},${shade})`;
+    ctx.fillRect(i, y1, 1, y2 - y1);
   }
 }
 
-// Arrow key movement
-document.addEventListener("keydown", (e) => {
-  const step = 20;
-  if (e.key === "ArrowLeft") camX += step;
-  if (e.key === "ArrowRight") camX -= step;
-  if (e.key === "ArrowUp") camY += step;
-  if (e.key === "ArrowDown") camY -= step;
-  drawWorld();
-});
+function movePlayer() {
+  const speed = 0.05;
+  if (keys['w']) {
+    const nx = posX + Math.cos(dir) * speed;
+    const ny = posY + Math.sin(dir) * speed;
+    if (map[Math.floor(ny)][Math.floor(nx)] === 0) {
+      posX = nx;
+      posY = ny;
+    }
+  }
+  if (keys['s']) {
+    const nx = posX - Math.cos(dir) * speed;
+    const ny = posY - Math.sin(dir) * speed;
+    if (map[Math.floor(ny)][Math.floor(nx)] === 0) {
+      posX = nx;
+      posY = ny;
+    }
+  }
+  if (keys['a']) dir -= 0.03;
+  if (keys['d']) dir += 0.03;
+}
 
-drawWorld();
+function loop() {
+  movePlayer();
+  ctx.fillStyle = "#333";
+  ctx.fillRect(0, 0, WIDTH, HEIGHT / 2); // Sky
+  ctx.fillStyle = "#222";
+  ctx.fillRect(0, HEIGHT / 2, WIDTH, HEIGHT / 2); // Ground
+  castRays();
+  requestAnimationFrame(loop);
+}
+
+loop();
 </script>
 </body>
 </html>
