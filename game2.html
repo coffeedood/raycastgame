@@ -1,364 +1,107 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>Raycaster with Elevator, Doors, Items, and Health</title>
+  <title>Minecraft-Like Blocks</title>
   <style>
-    html, body {
-      margin: 0; padding: 0; overflow: hidden; background: black;
-      height: 100%; width: 100%;
-    }
-    canvas { display: block; }
-    #fullscreenBtn {
-      position: absolute;
-      top: 10px; left: 10px;
-      z-index: 1000;
-      padding: 8px 12px;
-      background: #222;
-      color: white;
-      border: none;
-      cursor: pointer;
-      font-size: 14px;
-      border-radius: 4px;
-    }
+    body { margin: 0; background: #222; overflow: hidden; }
+    canvas { display: block; margin: 0 auto; background: #333; }
   </style>
 </head>
 <body>
-  <button id="fullscreenBtn">Go Fullscreen</button>
-  <canvas id="game"></canvas>
+<canvas id="gameCanvas" width="1000" height="600"></canvas>
+<script>
+const canvas = document.getElementById("gameCanvas");
+const ctx = canvas.getContext("2d");
 
-  <script>
-    const canvas = document.getElementById("game");
-    const ctx = canvas.getContext("2d");
+const mapWidth = 20;
+const mapHeight = 20;
 
-    function resize() {
-      canvas.width = window.innerWidth;
-      canvas.height = window.innerHeight;
-    }
-    resize();
-    window.addEventListener("resize", resize);
+// Generate terrain with varying heights
+const world = [];
+for (let y = 0; y < mapHeight; y++) {
+  const row = [];
+  for (let x = 0; x < mapWidth; x++) {
+    const height = Math.floor(Math.random() * 4); // 0 to 3 blocks high
+    row.push(height);
+  }
+  world.push(row);
+}
 
-    document.getElementById("fullscreenBtn").onclick = () => {
-      if (!document.fullscreenElement)
-        document.documentElement.requestFullscreen();
-      else
-        document.exitFullscreen();
-    };
+// Isometric projection settings
+const TILE_WIDTH = 64;
+const TILE_HEIGHT = 32;
+const BLOCK_HEIGHT = 16;
 
-    let floor1 = [
-      "####################",
-      "#..................#",
-      "#..................#",
-      "#.......I..........#",
-      "#.......D..........#",
-      "#..................#",
-      "#.......######.....#",
-      "#.......#....#.....#",
-      "#.......#....#.....#",
-      "#.......#....#.....#",
-      "#........B####.....#",
-      "#..................#",
-      "#..................#",
-      "#..................#",
-      "#..................#",
-      "####################"
-    ];
+let camX = 0;
+let camY = 0;
 
-    let floor2 = [
-      "####################",
-      "#..................#",
-      "#..................#",
-      "#..................#",
-      "#.......D..........#",
-      "#..................#",
-      "#.......######..I..#",
-      "#.......#....#.....#",
-      "#.......#....#.....#",
-      "#......####..#.....#",
-      "#......D.B####.....#",
-      "#......####........#",
-      "#..................#",
-      "#..................#",
-      "#..................#",
-      "####################"
-    ];
+// Convert tile to isometric screen position
+function isoX(x, y) {
+  return (x - y) * TILE_WIDTH / 2 + canvas.width / 2 + camX;
+}
 
-    let currentMap = floor1;
-    let currentFloor = 1;
+function isoY(x, y, z) {
+  return (x + y) * TILE_HEIGHT / 2 - z * BLOCK_HEIGHT + camY;
+}
 
-    let playerPositions = {
-      1: { x: 8.5, y: 10.5 },
-      2: { x: 8.5, y: 10.5 }
-    };
+function drawBlock(x, y, z) {
+  const sx = isoX(x, y);
+  const sy = isoY(x, y, z);
 
-    let posX = playerPositions[1].x, posY = playerPositions[1].y;
-    let dirX = 1, dirY = 0;
-    let planeX = 0, planeY = 0.66;
-    const keys = {};
-    document.addEventListener("keydown", e => {
-      keys[e.key.toLowerCase()] = true;
+  // Top
+  ctx.fillStyle = "#4caf50";
+  ctx.beginPath();
+  ctx.moveTo(sx, sy);
+  ctx.lineTo(sx + TILE_WIDTH / 2, sy + TILE_HEIGHT / 2);
+  ctx.lineTo(sx, sy + TILE_HEIGHT);
+  ctx.lineTo(sx - TILE_WIDTH / 2, sy + TILE_HEIGHT / 2);
+  ctx.closePath();
+  ctx.fill();
 
-      if (selectingFloor) {
-        if (e.key.toLowerCase() === "w" || e.key === "ArrowUp") {
-          selectedFloor = Math.max(1, selectedFloor - 1);
-        } else if (e.key.toLowerCase() === "s" || e.key === "ArrowDown") {
-          selectedFloor = Math.min(2, selectedFloor + 1);
-        } else if (e.key === "Enter") {
-          simulateElevator(selectedFloor);
-          selectingFloor = false;
-        }
-        e.preventDefault();
-      }
-    });
-    document.addEventListener("keyup", e => keys[e.key.toLowerCase()] = false);
+  // Left
+  ctx.fillStyle = "#388e3c";
+  ctx.beginPath();
+  ctx.moveTo(sx - TILE_WIDTH / 2, sy + TILE_HEIGHT / 2);
+  ctx.lineTo(sx, sy + TILE_HEIGHT);
+  ctx.lineTo(sx, sy + TILE_HEIGHT + BLOCK_HEIGHT);
+  ctx.lineTo(sx - TILE_WIDTH / 2, sy + TILE_HEIGHT / 2 + BLOCK_HEIGHT);
+  ctx.closePath();
+  ctx.fill();
 
-    let selectingFloor = false;
-    let selectedFloor = 1;
+  // Right
+  ctx.fillStyle = "#2e7d32";
+  ctx.beginPath();
+  ctx.moveTo(sx, sy + TILE_HEIGHT);
+  ctx.lineTo(sx + TILE_WIDTH / 2, sy + TILE_HEIGHT / 2);
+  ctx.lineTo(sx + TILE_WIDTH / 2, sy + TILE_HEIGHT / 2 + BLOCK_HEIGHT);
+  ctx.lineTo(sx, sy + TILE_HEIGHT + BLOCK_HEIGHT);
+  ctx.closePath();
+  ctx.fill();
+}
 
-    const inventory = [];
-    let health = 100;
-
-    let eKeyPressed = false; // For debouncing 'e' key
-
-    const doorPositions = {
-      1: [],
-      2: []
-    };
-    function recordDoorPositions(map, floorNumber) {
-      for (let y = 0; y < map.length; y++) {
-        for (let x = 0; x < map[y].length; x++) {
-          if (map[y][x] === 'D') {
-            doorPositions[floorNumber].push({ x, y });
-          }
-        }
+function drawWorld() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  for (let y = 0; y < mapHeight; y++) {
+    for (let x = 0; x < mapWidth; x++) {
+      let h = world[y][x];
+      for (let z = 0; z <= h; z++) {
+        drawBlock(x, y, z);
       }
     }
-    recordDoorPositions(floor1, 1);
-    recordDoorPositions(floor2, 2);
+  }
+}
 
-    function simulateElevator(floor) {
-      playerPositions[currentFloor] = { x: posX, y: posY };
-      currentFloor = floor;
-      currentMap = (floor === 1) ? floor1 : floor2;
-      posX = playerPositions[floor].x;
-      posY = playerPositions[floor].y;
-    }
+// Arrow key movement
+document.addEventListener("keydown", (e) => {
+  const step = 20;
+  if (e.key === "ArrowLeft") camX += step;
+  if (e.key === "ArrowRight") camX -= step;
+  if (e.key === "ArrowUp") camY += step;
+  if (e.key === "ArrowDown") camY -= step;
+  drawWorld();
+});
 
-    function replaceAt(str, index, replacement) {
-      return str.substring(0, index) + replacement + str.substring(index + 1);
-    }
-
-    function drawHUD() {
-      const w = canvas.width;
-      const h = canvas.height;
-
-      ctx.fillStyle = "#000";
-      ctx.fillRect(20, h - 50, 204, 24);
-      ctx.fillStyle = "#f00";
-      ctx.fillRect(22, h - 48, 2 * health, 20);
-      ctx.strokeStyle = "#fff";
-      ctx.strokeRect(20, h - 50, 204, 24);
-
-      ctx.fillStyle = "#fff";
-      ctx.font = "16px monospace";
-      ctx.fillText("Health: " + health, 25, h - 25);
-      ctx.fillText("Inventory: " + (inventory.length > 0 ? inventory.join(", ") : "Empty"), 240, h - 25);
-    }
-
-    function gameLoop() {
-      const w = canvas.width, h = canvas.height;
-      ctx.fillStyle = "black";
-      ctx.fillRect(0, 0, w, h);
-
-      const mapWidth = currentMap[0].length;
-      const mapHeight = currentMap.length;
-
-      for (let x = 0; x < w; x++) {
-        const cameraX = 2 * x / w - 1;
-        const rayDirX = dirX + planeX * cameraX;
-        const rayDirY = dirY + planeY * cameraX;
-
-        let mapX = Math.floor(posX);
-        let mapY = Math.floor(posY);
-
-        let sideDistX, sideDistY;
-        const deltaDistX = Math.abs(1 / rayDirX);
-        const deltaDistY = Math.abs(1 / rayDirY);
-        let stepX, stepY, side, hit = 0, hitChar = '';
-
-        if (rayDirX < 0) {
-          stepX = -1;
-          sideDistX = (posX - mapX) * deltaDistX;
-        } else {
-          stepX = 1;
-          sideDistX = (mapX + 1.0 - posX) * deltaDistX;
-        }
-
-        if (rayDirY < 0) {
-          stepY = -1;
-          sideDistY = (posY - mapY) * deltaDistY;
-        } else {
-          stepY = 1;
-          sideDistY = (mapY + 1.0 - posY) * deltaDistY;
-        }
-
-        while (!hit) {
-          if (sideDistX < sideDistY) {
-            sideDistX += deltaDistX;
-            mapX += stepX;
-            side = 0;
-          } else {
-            sideDistY += deltaDistY;
-            mapY += stepY;
-            side = 1;
-          }
-          hitChar = currentMap[mapY][mapX];
-          if (hitChar === '#' || hitChar === 'B' || hitChar === 'D' || hitChar === 'I') hit = 1;
-        }
-
-        const perpWallDist = side === 0
-          ? (mapX - posX + (1 - stepX) / 2) / rayDirX
-          : (mapY - posY + (1 - stepY) / 2) / rayDirY;
-
-        // Height variation based on tile type
-        let heightScale = 1;
-        if (hitChar === 'D') {
-          heightScale = 0.75; // Doors shorter
-        } else if (hitChar === 'I') {
-          heightScale = 0.3; // Items very short
-        } else if (hitChar === 'B') {
-          heightScale = 1.2; // Elevator buttons taller
-        }
-
-        const lineHeight = Math.floor(h / perpWallDist * heightScale);
-        const drawStart = -lineHeight / 2 + h / 2;
-        const drawEnd = lineHeight / 2 + h / 2;
-
-        let color;
-        if (hitChar === '#') {
-          const shade = side === 1 ? 180 : 255;
-          color = `rgb(${shade},${shade},${shade})`;
-        } else if (hitChar === 'B') {
-          color = side === 1 ? `rgb(100, 180, 255)` : `rgb(130, 210, 255)`;
-        } else if (hitChar === 'D') {
-          color = side === 1 ? `rgb(139,69,19)` : `rgb(160,82,45)`;
-        } else if (hitChar === 'I') {
-          color = side === 1 ? `rgb(255,215,0)` : `rgb(255,223,0)`;
-        }
-
-        ctx.strokeStyle = color;
-        ctx.beginPath();
-        ctx.moveTo(x, drawStart);
-        ctx.lineTo(x, drawEnd);
-        ctx.stroke();
-      }
-
-      const moveSpeed = 0.05;
-      const rotSpeed = 0.03;
-
-      if (!selectingFloor) {
-        const forwardX = posX + dirX * moveSpeed;
-        const forwardY = posY + dirY * moveSpeed;
-        if (keys['w'] || keys['arrowup']) {
-          if (currentMap[Math.floor(posY)][Math.floor(forwardX)] === '.') posX = forwardX;
-          if (currentMap[Math.floor(forwardY)][Math.floor(posX)] === '.') posY = forwardY;
-        }
-        const backX = posX - dirX * moveSpeed;
-        const backY = posY - dirY * moveSpeed;
-        if (keys['s'] || keys['arrowdown']) {
-          if (currentMap[Math.floor(posY)][Math.floor(backX)] === '.') posX = backX;
-          if (currentMap[Math.floor(backY)][Math.floor(posX)] === '.') posY = backY;
-        }
-
-        if (keys['arrowleft']) {
-          const oldDirX = dirX;
-          dirX = dirX * Math.cos(-rotSpeed) - dirY * Math.sin(-rotSpeed);
-          dirY = oldDirX * Math.sin(-rotSpeed) + dirY * Math.cos(-rotSpeed);
-          const oldPlaneX = planeX;
-          planeX = planeX * Math.cos(-rotSpeed) - planeY * Math.sin(-rotSpeed);
-          planeY = oldPlaneX * Math.sin(-rotSpeed) + planeY * Math.cos(-rotSpeed);
-        }
-        if (keys['arrowright']) {
-          const oldDirX = dirX;
-          dirX = dirX * Math.cos(rotSpeed) - dirY * Math.sin(rotSpeed);
-          dirY = oldDirX * Math.sin(rotSpeed) + dirY * Math.cos(rotSpeed);
-          const oldPlaneX = planeX;
-          planeX = planeX * Math.cos(rotSpeed) - planeY * Math.sin(rotSpeed);
-          planeY = oldPlaneX * Math.sin(rotSpeed) + planeY * Math.cos(rotSpeed);
-        }
-      }
-
-      // Debounced interaction key
-      if (keys['e'] && !eKeyPressed) {
-        eKeyPressed = true;
-        const frontX = Math.floor(posX + dirX);
-        const frontY = Math.floor(posY + dirY);
-        const frontTile = currentMap[frontY]?.[frontX];
-        const mapArray = currentFloor === 1 ? floor1 : floor2;
-        const doorsOnThisFloor = doorPositions[currentFloor];
-
-        if (frontTile === 'B') {
-          selectingFloor = true;
-          selectedFloor = currentFloor === 1 ? 2 : 1;
-        } else if (frontTile === 'D') {
-          mapArray[frontY] = replaceAt(mapArray[frontY], frontX, '.');
-        } else if (frontTile === 'I') {
-          inventory.push("Item");
-          mapArray[frontY] = replaceAt(mapArray[frontY], frontX, '.');
-        } else if (frontTile === '.') {
-          const wasDoor = doorsOnThisFloor.some(p => p.x === frontX && p.y === frontY);
-          if (wasDoor) {
-            mapArray[frontY] = replaceAt(mapArray[frontY], frontX, 'D');
-          }
-        }
-      }
-
-      if (!keys['e']) eKeyPressed = false; // Reset debounce
-
-      const tileSize = 5;
-      const offsetX = canvas.width - currentMap[0].length * tileSize - 10;
-      const offsetY = 10;
-
-      ctx.fillStyle = "rgba(0, 0, 0, 0.5)";
-      ctx.fillRect(offsetX - 2, offsetY - 2, currentMap[0].length * tileSize + 4, currentMap.length * tileSize + 4);
-
-      for (let y = 0; y < currentMap.length; y++) {
-        for (let x = 0; x < currentMap[0].length; x++) {
-          const cell = currentMap[y][x];
-          if (cell === '#') ctx.fillStyle = "#888";
-          else if (cell === 'B') ctx.fillStyle = "#0af";
-          else if (cell === 'D') ctx.fillStyle = "#964B00";
-          else if (cell === 'I') ctx.fillStyle = "#ff0";
-          else ctx.fillStyle = "#222";
-          ctx.fillRect(offsetX + x * tileSize, offsetY + y * tileSize, tileSize, tileSize);
-        }
-      }
-
-      ctx.fillStyle = "red";
-      ctx.beginPath();
-      ctx.arc(offsetX + posX * tileSize, offsetY + posY * tileSize, 2, 0, Math.PI * 2);
-      ctx.fill();
-
-      ctx.strokeStyle = "red";
-      ctx.beginPath();
-      ctx.moveTo(offsetX + posX * tileSize, offsetY + posY * tileSize);
-      ctx.lineTo(
-        offsetX + (posX + dirX * 0.7) * tileSize,
-        offsetY + (posY + dirY * 0.7) * tileSize
-      );
-      ctx.stroke();
-
-      if (selectingFloor) {
-        ctx.fillStyle = "white";
-        ctx.font = "20px monospace";
-        ctx.fillText("Select Floor: " + selectedFloor, 20, 40);
-        ctx.fillText("W/S or Up/Down to choose, Enter to confirm", 20, 70);
-      }
-
-      drawHUD();
-      requestAnimationFrame(gameLoop);
-    }
-
-    gameLoop();
-  </script>
+drawWorld();
+</script>
 </body>
 </html>
