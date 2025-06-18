@@ -1,11 +1,15 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>Raycasting Terrain with Height</title>
+  <title>Raycasting Game with Varying Heights</title>
   <style>
     html, body {
-      margin: 0; padding: 0; overflow: hidden; background: black;
-      height: 100%; width: 100%;
+      margin: 0;
+      padding: 0;
+      overflow: hidden;
+      background: black;
+      height: 100%;
+      width: 100%;
     }
     canvas { display: block; }
   </style>
@@ -15,40 +19,41 @@
 <script>
 const canvas = document.getElementById("game");
 const ctx = canvas.getContext("2d");
+canvas.width = window.innerWidth;
+canvas.height = window.innerHeight;
 
-function resize() {
-  canvas.width = window.innerWidth;
-  canvas.height = window.innerHeight;
-}
-resize();
-window.addEventListener("resize", resize);
-
-// Map with different heights (0 = empty)
+// Simple map with varying block heights
 const map = [
   [1,1,1,1,1,1,1,1],
   [1,0,0,0,0,0,0,1],
   [1,0,2,0,3,0,0,1],
+  [1,0,0,0,0,4,0,1],
+  [1,0,0,5,0,0,0,1],
   [1,0,0,0,0,0,0,1],
-  [1,0,0,4,0,5,0,1],
-  [1,0,0,0,0,0,0,1],
-  [1,0,0,0,0,0,0,1],
-  [1,1,1,1,1,1,1,1],
+  [1,1,1,1,1,1,1,1]
 ];
 
-// Player
 let posX = 2.5, posY = 2.5;
-let dirX = 1, dirY = 0;
+let dirX = -1, dirY = 0;
 let planeX = 0, planeY = 0.66;
 
 const keys = {};
-document.addEventListener("keydown", e => keys[e.key.toLowerCase()] = true);
-document.addEventListener("keyup", e => keys[e.key.toLowerCase()] = false);
+document.addEventListener('keydown', e => keys[e.key.toLowerCase()] = true);
+document.addEventListener('keyup', e => keys[e.key.toLowerCase()] = false);
+
+function isWalkable(x, y) {
+  const tile = map[Math.floor(y)]?.[Math.floor(x)];
+  return tile === 0;
+}
 
 function gameLoop() {
   const w = canvas.width;
   const h = canvas.height;
-  ctx.fillStyle = "black";
-  ctx.fillRect(0, 0, w, h);
+
+  ctx.fillStyle = "skyblue";
+  ctx.fillRect(0, 0, w, h / 2);
+  ctx.fillStyle = "darkgreen";
+  ctx.fillRect(0, h / 2, w, h / 2);
 
   for (let x = 0; x < w; x++) {
     const cameraX = 2 * x / w - 1;
@@ -58,14 +63,10 @@ function gameLoop() {
     let mapX = Math.floor(posX);
     let mapY = Math.floor(posY);
 
-    let sideDistX, sideDistY;
     const deltaDistX = Math.abs(1 / rayDirX);
     const deltaDistY = Math.abs(1 / rayDirY);
 
-    let stepX, stepY;
-    let hit = 0;
-    let side;
-
+    let stepX, stepY, sideDistX, sideDistY;
     if (rayDirX < 0) {
       stepX = -1;
       sideDistX = (posX - mapX) * deltaDistX;
@@ -73,6 +74,7 @@ function gameLoop() {
       stepX = 1;
       sideDistX = (mapX + 1.0 - posX) * deltaDistX;
     }
+
     if (rayDirY < 0) {
       stepY = -1;
       sideDistY = (posY - mapY) * deltaDistY;
@@ -81,7 +83,8 @@ function gameLoop() {
       sideDistY = (mapY + 1.0 - posY) * deltaDistY;
     }
 
-    while (hit === 0) {
+    let hit = false, side, height = 0;
+    while (!hit) {
       if (sideDistX < sideDistY) {
         sideDistX += deltaDistX;
         mapX += stepX;
@@ -91,24 +94,25 @@ function gameLoop() {
         mapY += stepY;
         side = 1;
       }
-      if (map[mapY][mapX] > 0) hit = map[mapY][mapX];
+
+      const cell = map[mapY]?.[mapX] ?? 0;
+      if (cell > 0) {
+        hit = true;
+        height = cell;
+      }
     }
 
     const perpWallDist = side === 0
       ? (mapX - posX + (1 - stepX) / 2) / rayDirX
       : (mapY - posY + (1 - stepY) / 2) / rayDirY;
 
-    const wallHeight = hit;
-    const lineHeight = Math.floor(h / perpWallDist * (wallHeight / 2));
-    let drawStart = -lineHeight / 2 + h / 2;
-    let drawEnd = lineHeight / 2 + h / 2;
+    const lineHeight = Math.floor((h / perpWallDist) * (height / 1.5));
+    const drawStart = Math.max(0, -lineHeight / 2 + h / 2);
+    const drawEnd = Math.min(h, lineHeight / 2 + h / 2);
 
-    drawStart = Math.max(0, drawStart);
-    drawEnd = Math.min(h, drawEnd);
-
-    // Simple color gradient for height
-    const shade = 50 + wallHeight * 40;
-    ctx.strokeStyle = `rgb(${shade},${shade},${shade})`;
+    const colorVal = 255 - height * 30;
+    const shade = side === 1 ? 0.7 : 1;
+    ctx.strokeStyle = `rgb(${colorVal * shade}, ${colorVal * shade}, ${colorVal * shade})`;
     ctx.beginPath();
     ctx.moveTo(x, drawStart);
     ctx.lineTo(x, drawEnd);
@@ -122,14 +126,14 @@ function gameLoop() {
   if (keys['w']) {
     const nextX = posX + dirX * moveSpeed;
     const nextY = posY + dirY * moveSpeed;
-    if (map[Math.floor(posY)][Math.floor(nextX)] === 0) posX = nextX;
-    if (map[Math.floor(nextY)][Math.floor(posX)] === 0) posY = nextY;
+    if (isWalkable(nextX, posY)) posX = nextX;
+    if (isWalkable(posX, nextY)) posY = nextY;
   }
   if (keys['s']) {
     const nextX = posX - dirX * moveSpeed;
     const nextY = posY - dirY * moveSpeed;
-    if (map[Math.floor(posY)][Math.floor(nextX)] === 0) posX = nextX;
-    if (map[Math.floor(nextY)][Math.floor(posX)] === 0) posY = nextY;
+    if (isWalkable(nextX, posY)) posX = nextX;
+    if (isWalkable(posX, nextY)) posY = nextY;
   }
   if (keys['a']) {
     const oldDirX = dirX;
@@ -150,7 +154,6 @@ function gameLoop() {
 
   requestAnimationFrame(gameLoop);
 }
-
 gameLoop();
 </script>
 </body>
