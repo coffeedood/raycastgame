@@ -1,121 +1,168 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>Raycasting with Varying Heights</title>
+  <title>Raycasting Terrain</title>
   <style>
-    body { margin: 0; overflow: hidden; background: black; }
-    canvas { display: block; }
+    body { margin:0; overflow:hidden; background:#000; }
+    canvas { display:block; }
   </style>
 </head>
 <body>
-<canvas id="gameCanvas" width="800" height="600"></canvas>
+<canvas id="game"></canvas>
 <script>
-const canvas = document.getElementById("gameCanvas");
+const canvas = document.getElementById("game");
 const ctx = canvas.getContext("2d");
-const WIDTH = canvas.width;
-const HEIGHT = canvas.height;
+function resize() {
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
+}
+resize();
+window.addEventListener("resize", resize);
 
-// Simple map with varying heights (0 = empty, 1-5 = wall height)
+// Map: numbers define wall height (0 = no wall)
 const map = [
   [3,3,3,3,3,3,3,3],
-  [3,0,0,0,0,0,0,3],
+  [3,0,0,0,2,0,0,3],
   [3,0,1,0,2,0,0,3],
-  [3,0,0,5,0,0,0,3],
-  [3,0,2,0,4,0,0,3],
-  [3,0,0,0,0,0,0,3],
-  [3,3,3,3,3,3,3,3],
+  [3,0,0,4,0,0,0,3],
+  [3,0,2,0,5,0,0,3],
+  [3,0,0,0,2,0,0,3],
+  [3,3,3,3,3,3,3,3]
 ];
-const mapW = map[0].length;
-const mapH = map.length;
+const mapW = map[0].length, mapH = map.length;
 
-// Player position
-let posX = 3.5;
-let posY = 3.5;
-let dir = Math.PI / 4; // Facing 45 degrees
+// Player
+let posX = 4.5, posY = 4.5;
+let dirX = -1, dirY = 0;
+let planeX = 0, planeY = 0.66; // camera plane
 
-// Movement
 let keys = {};
-document.addEventListener("keydown", e => keys[e.key] = true);
-document.addEventListener("keyup", e => keys[e.key] = false);
+document.addEventListener("keydown", e => keys[e.key.toLowerCase()] = true);
+document.addEventListener("keyup", e => keys[e.key.toLowerCase()] = false);
 
-function castRays() {
-  const fov = Math.PI / 3;
-  const numRays = WIDTH;
-  const angleStep = fov / numRays;
+// Mouse look
+let mouseLocked = false;
+canvas.onclick = () => {
+  canvas.requestPointerLock();
+};
+document.addEventListener('pointerlockchange', () => {
+  mouseLocked = document.pointerLockElement === canvas;
+});
+document.addEventListener('mousemove', e => {
+  if (!mouseLocked) return;
+  const rot = -e.movementX * 0.002;
+  const oldX = dirX;
+  dirX = dirX * Math.cos(rot) - dirY * Math.sin(rot);
+  dirY = oldX * Math.sin(rot) + dirY * Math.cos(rot);
+  const oldPX = planeX;
+  planeX = planeX * Math.cos(rot) - planeY * Math.sin(rot);
+  planeY = oldPX * Math.sin(rot) + planeY * Math.cos(rot);
+});
 
-  for (let i = 0; i < numRays; i++) {
-    const rayAngle = dir - fov / 2 + i * angleStep;
-    let rayX = posX;
-    let rayY = posY;
+function gameLoop() {
+  const W = canvas.width, H = canvas.height;
+  ctx.clearRect(0,0,W,H);
 
-    const stepSize = 0.01;
-    let hit = false;
-    let dist = 0;
-    let height = 0;
+  // Draw sky/ground
+  ctx.fillStyle = "#444"; ctx.fillRect(0, 0, W, H/2);
+  ctx.fillStyle = "#222"; ctx.fillRect(0, H/2, W, H/2);
 
-    while (!hit && dist < 20) {
-      rayX += Math.cos(rayAngle) * stepSize;
-      rayY += Math.sin(rayAngle) * stepSize;
-      dist += stepSize;
+  // Raycast per screen column
+  for (let x = 0; x < W; x++) {
+    const cameraX = 2 * x / W - 1;
+    const rayDirX = dirX + planeX * cameraX;
+    const rayDirY = dirY + planeY * cameraX;
 
-      const mx = Math.floor(rayX);
-      const my = Math.floor(rayY);
+    let mapX = Math.floor(posX), mapY = Math.floor(posY);
+    let sideDistX, sideDistY, deltaDistX, deltaDistY;
+    let stepX, stepY, hit = false, side = 0;
+    deltaDistX = Math.abs(1 / rayDirX);
+    deltaDistY = Math.abs(1 / rayDirY);
 
-      if (mx >= 0 && mx < mapW && my >= 0 && my < mapH) {
-        height = map[my][mx];
-        if (height > 0) hit = true;
+    if (rayDirX < 0) {
+      stepX = -1;
+      sideDistX = (posX - mapX) * deltaDistX;
+    } else {
+      stepX = 1;
+      sideDistX = (mapX + 1 - posX) * deltaDistX;
+    }
+    if (rayDirY < 0) {
+      stepY = -1;
+      sideDistY = (posY - mapY) * deltaDistY;
+    } else {
+      stepY = 1;
+      sideDistY = (mapY + 1 - posY) * deltaDistY;
+    }
+
+    // Walking through the grid
+    let wallHeight = 0;
+    let perpDist = 0;
+    while (!hit) {
+      if (sideDistX < sideDistY) {
+        sideDistX += deltaDistX;
+        mapX += stepX;
+        side = 0;
+      } else {
+        sideDistY += deltaDistY;
+        mapY += stepY;
+        side = 1;
+      }
+      if (mapX >= 0 && mapY >= 0 && mapX < mapW && mapY < mapH) {
+        wallHeight = map[mapY][mapX];
+        if (wallHeight > 0) hit = true;
       } else {
         hit = true;
-        height = 0;
+        wallHeight = 1;
       }
     }
 
-    // Fix fisheye effect
-    const correctedDist = dist * Math.cos(rayAngle - dir);
+    perpDist = side === 0
+      ? (mapX - posX + (1 - stepX) / 2) / rayDirX
+      : (mapY - posY + (1 - stepY) / 2) / rayDirY;
 
-    const wallHeight = (HEIGHT / correctedDist) * (height / 3);
-    const y1 = HEIGHT / 2 - wallHeight;
-    const y2 = HEIGHT / 2 + wallHeight;
+    const lineH = Math.floor(H / perpDist * wallHeight);
+    let y0 = Math.floor(H/2 - lineH/2);
+    let y1 = y0 + lineH;
 
-    const shade = 50 + height * 40;
-    ctx.fillStyle = `rgb(${shade},${shade},${shade})`;
-    ctx.fillRect(i, y1, 1, y2 - y1);
+    // Shade by height and side
+    const brightness = side ? 0.6 : 1;
+    const shade = Math.min(255, 80 * wallHeight);
+    ctx.strokeStyle = `rgba(${shade},${shade},${shade},${brightness})`;
+    ctx.beginPath();
+    ctx.moveTo(x, y0);
+    ctx.lineTo(x, y1);
+    ctx.stroke();
   }
-}
 
-function movePlayer() {
-  const speed = 0.05;
+  // Movement
+  const moveSpeed = 0.05;
   if (keys['w']) {
-    const nx = posX + Math.cos(dir) * speed;
-    const ny = posY + Math.sin(dir) * speed;
+    const nx = posX + dirX * moveSpeed;
+    const ny = posY + dirY * moveSpeed;
     if (map[Math.floor(ny)][Math.floor(nx)] === 0) {
-      posX = nx;
-      posY = ny;
+      posX = nx; posY = ny;
     }
   }
   if (keys['s']) {
-    const nx = posX - Math.cos(dir) * speed;
-    const ny = posY - Math.sin(dir) * speed;
+    const nx = posX - dirX * moveSpeed;
+    const ny = posY - dirY * moveSpeed;
     if (map[Math.floor(ny)][Math.floor(nx)] === 0) {
-      posX = nx;
-      posY = ny;
+      posX = nx; posY = ny;
     }
   }
-  if (keys['a']) dir -= 0.03;
-  if (keys['d']) dir += 0.03;
-}
+  if (keys['a'] || keys['d']) {
+    const side = keys['a'] ? 1 : -1;
+    // strafing
+    const nx = posX + dirY * moveSpeed * side;
+    const ny = posY - dirX * moveSpeed * side;
+    if (map[Math.floor(ny)][Math.floor(nx)] === 0) {
+      posX = nx; posY = ny;
+    }
+  }
 
-function loop() {
-  movePlayer();
-  ctx.fillStyle = "#333";
-  ctx.fillRect(0, 0, WIDTH, HEIGHT / 2); // Sky
-  ctx.fillStyle = "#222";
-  ctx.fillRect(0, HEIGHT / 2, WIDTH, HEIGHT / 2); // Ground
-  castRays();
-  requestAnimationFrame(loop);
+  requestAnimationFrame(gameLoop);
 }
-
-loop();
+gameLoop();
 </script>
 </body>
 </html>
