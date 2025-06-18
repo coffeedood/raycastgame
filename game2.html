@@ -1,11 +1,11 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>Raycasting with Movement</title>
+  <title>Raycaster with Varying Wall Heights</title>
   <style>
     html, body {
-      margin: 0; padding: 0; overflow: hidden; background: black;
-      height: 100%; width: 100%;
+      margin: 0; padding: 0; overflow: hidden;
+      background: black; height: 100%; width: 100%;
     }
     canvas { display: block; }
   </style>
@@ -15,10 +15,15 @@
 <script>
 const canvas = document.getElementById("game");
 const ctx = canvas.getContext("2d");
-canvas.width = window.innerWidth;
-canvas.height = window.innerHeight;
 
-// MAP: 0 = walkable, >0 = wall of varying height
+function resize() {
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
+}
+resize();
+window.addEventListener("resize", resize);
+
+// Map with different wall heights (1–5)
 const map = [
   [1,1,1,1,1,1,1,1],
   [1,0,0,0,0,0,0,1],
@@ -29,29 +34,19 @@ const map = [
   [1,1,1,1,1,1,1,1]
 ];
 
-// Start in an open space
 let posX = 3.5, posY = 3.5;
 let dirX = -1, dirY = 0;
 let planeX = 0, planeY = 0.66;
-
 const keys = {};
-document.addEventListener('keydown', e => keys[e.key.toLowerCase()] = true);
-document.addEventListener('keyup', e => keys[e.key.toLowerCase()] = false);
 
-function isWalkable(x, y) {
-  const mx = Math.floor(x);
-  const my = Math.floor(y);
-  return map[my] && map[my][mx] === 0;
-}
+document.addEventListener("keydown", e => keys[e.key.toLowerCase()] = true);
+document.addEventListener("keyup", e => keys[e.key.toLowerCase()] = false);
 
 function gameLoop() {
   const w = canvas.width;
   const h = canvas.height;
-
-  ctx.fillStyle = "skyblue";
-  ctx.fillRect(0, 0, w, h / 2);
-  ctx.fillStyle = "darkgreen";
-  ctx.fillRect(0, h / 2, w, h / 2);
+  ctx.fillStyle = "black";
+  ctx.fillRect(0, 0, w, h);
 
   for (let x = 0; x < w; x++) {
     const cameraX = 2 * x / w - 1;
@@ -63,8 +58,9 @@ function gameLoop() {
 
     const deltaDistX = Math.abs(1 / rayDirX);
     const deltaDistY = Math.abs(1 / rayDirY);
+    let stepX, stepY;
+    let sideDistX, sideDistY;
 
-    let stepX, stepY, sideDistX, sideDistY;
     if (rayDirX < 0) {
       stepX = -1;
       sideDistX = (posX - mapX) * deltaDistX;
@@ -72,7 +68,6 @@ function gameLoop() {
       stepX = 1;
       sideDistX = (mapX + 1.0 - posX) * deltaDistX;
     }
-
     if (rayDirY < 0) {
       stepY = -1;
       sideDistY = (posY - mapY) * deltaDistY;
@@ -81,7 +76,9 @@ function gameLoop() {
       sideDistY = (mapY + 1.0 - posY) * deltaDistY;
     }
 
-    let hit = false, side, height = 0;
+    let hit = false;
+    let side, cell;
+
     while (!hit) {
       if (sideDistX < sideDistY) {
         sideDistX += deltaDistX;
@@ -92,56 +89,49 @@ function gameLoop() {
         mapY += stepY;
         side = 1;
       }
-
-      const cell = map[mapY]?.[mapX] ?? 0;
-      if (cell > 0) {
-        hit = true;
-        height = cell;
-      }
+      cell = map[mapY][mapX];
+      if (cell > 0) hit = true;
     }
 
     const perpWallDist = side === 0
       ? (mapX - posX + (1 - stepX) / 2) / rayDirX
       : (mapY - posY + (1 - stepY) / 2) / rayDirY;
 
+    const height = cell;
     const lineHeight = Math.floor((h / perpWallDist) * (height / 1.5));
-    const drawStart = Math.max(0, -lineHeight / 2 + h / 2);
-    const drawEnd = Math.min(h, lineHeight / 2 + h / 2);
+    let drawStart = -lineHeight / 2 + h / 2;
+    let drawEnd = lineHeight / 2 + h / 2;
 
     const shade = side === 1 ? 0.7 : 1;
-    const color = 255 - height * 30;
-    ctx.strokeStyle = `rgb(${color * shade}, ${color * shade}, ${color * shade})`;
+    const baseColor = 255 - height * 30;
+    const color = `rgb(${baseColor * shade},${baseColor * shade},${baseColor * shade})`;
+
+    ctx.strokeStyle = color;
     ctx.beginPath();
     ctx.moveTo(x, drawStart);
     ctx.lineTo(x, drawEnd);
     ctx.stroke();
   }
 
-  // Movement
   const moveSpeed = 0.05;
-  const rotSpeed = 0.04;
+  const rotSpeed = 0.03;
 
+  // Movement
   if (keys['w']) {
-    const nextX = posX + dirX * moveSpeed;
-    const nextY = posY + dirY * moveSpeed;
-    if (isWalkable(nextX, posY)) posX = nextX;
-    if (isWalkable(posX, nextY)) posY = nextY;
+    const newX = posX + dirX * moveSpeed;
+    const newY = posY + dirY * moveSpeed;
+    if (map[Math.floor(posY)][Math.floor(newX)] === 0) posX = newX;
+    if (map[Math.floor(newY)][Math.floor(posX)] === 0) posY = newY;
   }
   if (keys['s']) {
-    const nextX = posX - dirX * moveSpeed;
-    const nextY = posY - dirY * moveSpeed;
-    if (isWalkable(nextX, posY)) posX = nextX;
-    if (isWalkable(posX, nextY)) posY = nextY;
+    const newX = posX - dirX * moveSpeed;
+    const newY = posY - dirY * moveSpeed;
+    if (map[Math.floor(posY)][Math.floor(newX)] === 0) posX = newX;
+    if (map[Math.floor(newY)][Math.floor(posX)] === 0) posY = newY;
   }
-  if (keys['a']) {
-    const oldDirX = dirX;
-    dirX = dirX * Math.cos(rotSpeed) - dirY * Math.sin(rotSpeed);
-    dirY = oldDirX * Math.sin(rotSpeed) + dirY * Math.cos(rotSpeed);
-    const oldPlaneX = planeX;
-    planeX = planeX * Math.cos(rotSpeed) - planeY * Math.sin(rotSpeed);
-    planeY = oldPlaneX * Math.sin(rotSpeed) + planeY * Math.cos(rotSpeed);
-  }
-  if (keys['d']) {
+
+  // Rotation
+  if (keys['arrowleft']) {
     const oldDirX = dirX;
     dirX = dirX * Math.cos(-rotSpeed) - dirY * Math.sin(-rotSpeed);
     dirY = oldDirX * Math.sin(-rotSpeed) + dirY * Math.cos(-rotSpeed);
@@ -149,9 +139,18 @@ function gameLoop() {
     planeX = planeX * Math.cos(-rotSpeed) - planeY * Math.sin(-rotSpeed);
     planeY = oldPlaneX * Math.sin(-rotSpeed) + planeY * Math.cos(-rotSpeed);
   }
+  if (keys['arrowright']) {
+    const oldDirX = dirX;
+    dirX = dirX * Math.cos(rotSpeed) - dirY * Math.sin(rotSpeed);
+    dirY = oldDirX * Math.sin(rotSpeed) + dirY * Math.cos(rotSpeed);
+    const oldPlaneX = planeX;
+    planeX = planeX * Math.cos(rotSpeed) - planeY * Math.sin(rotSpeed);
+    planeY = oldPlaneX * Math.sin(rotSpeed) + planeY * Math.cos(rotSpeed);
+  }
 
   requestAnimationFrame(gameLoop);
 }
+
 gameLoop();
 </script>
 </body>
