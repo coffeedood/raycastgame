@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>Raycaster with Visible Taller Walls Behind Smaller Walls</title>
+  <title>Raycaster with Masked Tall Walls</title>
   <style>
     html, body {
       margin: 0; padding: 0; overflow: hidden;
@@ -58,7 +58,6 @@ function gameLoop() {
     const rayDirX = dirX + planeX * cameraX;
     const rayDirY = dirY + planeY * cameraX;
 
-    // Setup for DDA
     let mapX = Math.floor(posX);
     let mapY = Math.floor(posY);
 
@@ -82,16 +81,14 @@ function gameLoop() {
       sideDistY = (mapY + 1.0 - posY) * deltaDistY;
     }
 
-    // Collect all walls hit on this ray (max 10 to avoid infinite)
     const hits = [];
-    let maxHits = 10;
     let hitCount = 0;
     let currMapX = mapX;
     let currMapY = mapY;
     let currSideDistX = sideDistX;
     let currSideDistY = sideDistY;
 
-    while (hitCount < maxHits) {
+    while (hitCount < 10) {
       if (currSideDistX < currSideDistY) {
         currSideDistX += deltaDistX;
         currMapX += stepX;
@@ -105,7 +102,6 @@ function gameLoop() {
 
       const cell = map[currMapY][currMapX];
       if (cell > 0) {
-        // Perpendicular distance to wall
         const perpDist = side === 0
           ? (currMapX - posX + (1 - stepX) / 2) / rayDirX
           : (currMapY - posY + (1 - stepY) / 2) / rayDirY;
@@ -115,23 +111,18 @@ function gameLoop() {
       }
     }
 
-    // Sort hits nearest first (front to back)
-    hits.sort((a,b) => a.dist - b.dist);
+    hits.sort((a, b) => a.dist - b.dist);
 
-    // Track top pixel (y) drawn so far; walls can only be drawn above this (higher on screen)
-    let topLimit = h; // start from bottom, walls can only grow upward
+    let topLimit = h;
 
     for (const hit of hits) {
       const lineHeight = Math.floor((h / hit.dist) * (hit.height / 1.5));
-
       let drawStart = Math.floor(h / 2 - lineHeight / 2);
       let drawEnd = Math.floor(h / 2 + lineHeight / 2);
 
-      // Clamp drawEnd so it doesn't go below topLimit (to not overwrite closer walls)
-      if(drawEnd > topLimit) drawEnd = topLimit;
-      if(drawStart >= drawEnd) continue; // no space to draw
+      if (drawEnd > topLimit) drawEnd = topLimit;
+      if (drawStart >= drawEnd) continue;
 
-      // Draw the vertical line
       const shade = hit.side === 1 ? 0.7 : 1;
       const baseColor = 255 - hit.height * 30;
       const c = Math.floor(baseColor * shade);
@@ -143,16 +134,24 @@ function gameLoop() {
       ctx.lineTo(x, drawEnd);
       ctx.stroke();
 
-      // Update topLimit so next walls don't overwrite this closer wall's pixels
+      // Static black base for height 7 walls
+      if (hit.height === 7) {
+        const wallBaseHeight = Math.floor(h / 2 + lineHeight / 2);
+        const blackHeight = Math.floor(lineHeight * 0.2);
+        const blackStart = wallBaseHeight - blackHeight;
+
+        if (blackStart < wallBaseHeight) {
+          ctx.fillStyle = "black";
+          ctx.fillRect(x, blackStart, 1, blackHeight);
+        }
+      }
+
       topLimit = drawStart;
     }
   }
 
-  // Movement speed and rotation speed
-  const moveSpeed = 0.05;
-  const rotSpeed = 0.03;
+  const moveSpeed = 0.05, rotSpeed = 0.03;
 
-  // Movement forward/backward with collision
   if (keys['w']) {
     const newX = posX + dirX * moveSpeed;
     const newY = posY + dirY * moveSpeed;
@@ -165,8 +164,6 @@ function gameLoop() {
     if (map[Math.floor(posY)][Math.floor(newX)] === 0) posX = newX;
     if (map[Math.floor(newY)][Math.floor(posX)] === 0) posY = newY;
   }
-
-  // Rotation with 'a' and 'd' keys
   if (keys['a']) {
     const oldDirX = dirX;
     dirX = dirX * Math.cos(-rotSpeed) - dirY * Math.sin(-rotSpeed);
